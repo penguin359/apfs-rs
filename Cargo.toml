@@ -1,0 +1,7 @@
+[package]
+name = "apfs"
+version = "0.1.0"
+authors = ["Loren M. Lang <lorenl@north-winds.org>"]
+edition = "2018"
+
+[dependencies]
