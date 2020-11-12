@@ -5,3 +5,4 @@ authors = ["Loren M. Lang <lorenl@north-winds.org>"]
 edition = "2018"
 
 [dependencies]
+byteorder = "1.3.1"
