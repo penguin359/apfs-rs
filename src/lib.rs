@@ -9,3 +9,4 @@ mod tests {
 }
 
 mod internal;
+mod fletcher;
