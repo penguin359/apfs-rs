@@ -1,5 +1,3 @@
-extern crate byteorder;
-
 #[cfg(test)]
 mod tests {
     #[test]
