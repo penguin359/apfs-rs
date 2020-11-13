@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::io::{self, Read};
+use std::io::{self, prelude::*};
 
 //use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -13,7 +13,7 @@ struct Prange {
 }
 
 impl Prange {
-    fn import(source: &mut Read) -> io::Result<Self> {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             pr_start_paddr: source.read_i64::<LittleEndian>()?,
             pr_block_count: source.read_u64::<LittleEndian>()?,
@@ -22,7 +22,7 @@ impl Prange {
 }
 
 type Uuid = [u8; 16];
-fn import_uuid(source: &mut Read) -> io::Result<Uuid> {
+fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
     Ok([
         source.read_u8()?,
         source.read_u8()?,
@@ -59,7 +59,7 @@ struct ObjPhys {
 }
 
 impl ObjPhys {
-    fn import(source: &mut Read) -> io::Result<Self> {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             o_cksum: source.read_u64::<LittleEndian>()?,
             o_oid: source.read_u64::<LittleEndian>()?,
@@ -202,7 +202,7 @@ struct NxSuperblock {
 }
 
 impl NxSuperblock {
-    fn import(source: &mut Read) -> io::Result<Self> {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             nx_o: ObjPhys::import(source)?,
             nx_magic: source.read_u32::<LittleEndian>()?,

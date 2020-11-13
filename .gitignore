@@ -2,5 +2,5 @@
 *~
 /target/
 **/*.rs.bk
-*.img
+#*.img
 Cargo.lock
