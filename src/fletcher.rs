@@ -1,17 +1,17 @@
+use std::fs::File;
+use std::io::Cursor;
+use std::io::prelude::*;
+use std::path::PathBuf;
+
+use byteorder::{LittleEndian, ReadBytesExt};
+
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use std::fs::File;
-    use std::io::Cursor;
-    use std::io::prelude::*;
-    use std::path::PathBuf;
-
-    use byteorder::{LittleEndian, ReadBytesExt};
-
     #[test]
     fn test_simple_fletcher64() {
-        let buffer = include_bytes!("../testdata/volume_superblock.1");
+        let buffer = &include_bytes!("../testdata/volume_superblock.1")[..];
         let mut cursor = Cursor::new(buffer);
         let checksum = cursor.read_u64::<LittleEndian>().unwrap();
         assert_eq!(fletcher64(&buffer[8..]), checksum);
@@ -42,7 +42,7 @@ mod test {
     }
 }
 
-fn fletcher64(buffer: &[u8]) -> u64 {
+pub fn fletcher64(buffer: &[u8]) -> u64 {
     let initial_value = 0u64;
 
     if buffer.len() % 4 != 0 {

@@ -6,5 +6,7 @@ mod tests {
     }
 }
 
+#[macro_use]
+mod int_strings;
 mod internal;
 mod fletcher;
