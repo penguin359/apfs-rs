@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use uuid::{Bytes, Uuid};
+
 use std::io::{self, prelude::*};
 
 //use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -22,26 +24,10 @@ impl Prange {
     }
 }
 
-type Uuid = [u8; 16];
 fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
-    Ok([
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-        source.read_u8()?,
-    ])
+    let mut data: Bytes = [0; 16];
+    source.read_exact(&mut data)?;
+    Ok(Uuid::from_bytes(data))
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
