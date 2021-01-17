@@ -3,6 +3,7 @@
 use std::io::{self, prelude::*};
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use bitflags;
 use uuid::{Bytes, Uuid};
 
 #[cfg(test)]
@@ -56,10 +57,7 @@ impl Xid {
 }
 
 
-//const MAX_CKSUM_SIZE: usize = 8;
-
 struct ObjPhys {
-    //o_cksum: [u8; MAX_CKSUM_SIZE],
     o_cksum: u64,
     o_oid: Oid,
     o_xid: Xid,
@@ -305,7 +303,7 @@ impl NxSuperblock {
 
 const NX_FEATURE_DEFRAG: u64 = 0x0000000000000001;
 const NX_FEATURE_LCFD: u64 = 0x0000000000000002;
-const NX_SUPPORTED_FEATURES_MASK: u64 = (NX_FEATURE_DEFRAG | NX_FEATURE_LCFD);
+const NX_SUPPORTED_FEATURES_MASK: u64 = NX_FEATURE_DEFRAG | NX_FEATURE_LCFD;
 
 
 //#define NX_SUPPORTED_ROCOMPAT_MASK (0x0ULL)
@@ -322,37 +320,70 @@ const NX_SUPPORTED_FEATURES_MASK: u64 = (NX_FEATURE_DEFRAG | NX_FEATURE_LCFD);
 //#define NX_MAXIMUM_BLOCK_SIZE 65536
 //
 //#define NX_MINIMUM_CONTAINER_SIZE 1048576
-//
-//
-//struct checkpoint_mapping {
-//      uint32_t cpm_type;
-//      uint32_t cpm_subtype;
-//      uint32_t cpm_size;
-//      uint32_t cpm_pad;
-//      oid_t cpm_fs_oid;
-//      oid_t cpm_oid;
-//      oid_t cpm_paddr;
-//};
-//typedef struct checkpoint_mapping checkpoint_mapping_t;
-//
-//
-//struct checkpoint_map_phys {
-//      obj_phys_t cpm_o;
-//      uint32_t cpm_flags;
-//      uint32_t cpm_count;
-//      checkpoint_mapping_t cpm_map[];
-//};
-//
-//#define CHECKPOINT_MAP_LAST 0x00000001
-//
-//
+
+
+struct CheckpointMapping {
+    cpm_type:       u32,
+    cpm_subtype:    u32,
+    cpm_size:       u32,
+    cpm_pad:        u32,
+    cpm_fs_oid:     Oid,
+    cpm_oid:        Oid,
+    cpm_paddr:      Oid,
+}
+
+impl CheckpointMapping {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            cpm_type: source.read_u32::<LittleEndian>()?,
+            cpm_subtype: source.read_u32::<LittleEndian>()?,
+            cpm_size: source.read_u32::<LittleEndian>()?,
+            cpm_pad: source.read_u32::<LittleEndian>()?,
+            cpm_fs_oid: Oid::import(source)?,
+            cpm_oid: Oid::import(source)?,
+            cpm_paddr: Oid::import(source)?,
+        })
+    }
+}
+
+
+bitflags! {
+    struct CpmFlags: u32 {
+        const CHECKPOINT_MAP_LAST = 0x00000001;
+    }
+}
+
+struct CheckpointMapPhys {
+      cpm_o:        ObjPhys,
+      cpm_flags:    CpmFlags,
+      cpm_count:    u32,
+      cpm_map:      Vec<CheckpointMapping>,
+}
+
+impl CheckpointMapPhys {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut checkpoint_map = Self {
+            cpm_o: ObjPhys::import(source)?,
+            cpm_flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            cpm_count: source.read_u32::<LittleEndian>()?,
+            cpm_map: vec![],
+        };
+        for _ in 0..checkpoint_map.cpm_count {
+            checkpoint_map.cpm_map.push(CheckpointMapping::import(source)?);
+        }
+        Ok(checkpoint_map)
+    }
+}
+
+
+
 //struct evict_mapping_val {
 //      paddr_t dst_paddr;
 //      uint64_t len;
 //} __attribute__((packed));
 //typedef struct evict_mapping_val evict_mapping_val_t;
-//
-//
+
+
 
 #[repr(u32)]
 enum ObjectType {
