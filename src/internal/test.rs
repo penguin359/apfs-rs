@@ -106,7 +106,7 @@ fn test_load_checkpoints() {
             panic!("Unrecognized block type");
         }
     }
-    panic!("Dump");
+    //panic!("Dump");
 }
 
 #[test]
@@ -188,5 +188,5 @@ fn test_load_checkpoint_data() {
         //println!("  Data block type: {:?}", header);
         println!("  Data block type: {:?} - {:?}", header.o_type & OBJECT_TYPE_MASK, header.o_subtype);
     }
-    panic!("Dump");
+    //panic!("Dump");
 }
