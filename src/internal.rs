@@ -57,6 +57,7 @@ impl Xid {
 }
 
 
+#[derive(Debug)]
 struct ObjPhys {
     o_cksum: u64,
     o_oid: Oid,
@@ -422,3 +423,5 @@ enum ObjectType {
     Invalid             = 0x00000000,
     Test                = 0x000000ff,
 }
+
+const APFS_MAGIC: u32   = u32_code!(b"BSXN");
