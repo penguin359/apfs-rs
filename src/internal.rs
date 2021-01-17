@@ -1,13 +1,9 @@
 #![allow(dead_code)]
 
-use uuid::{Bytes, Uuid};
-
 use std::io::{self, prelude::*};
 
-//use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use byteorder::{LittleEndian, ReadBytesExt};
-
-//use super::int_strings::u32_code;
+use uuid::{Bytes, Uuid};
 
 #[cfg(test)]
 mod test;
@@ -213,9 +209,37 @@ struct NxSuperblock {
         nx_fusion_mt_oid: Oid,
         nx_fusion_wbc_oid: Oid,
         nx_fusion_wbc: Prange,
+
+        nx_newest_mounted_version: u64,
+
+        nx_mkb_locker: Prange,
 }
 
 impl NxSuperblock {
+    fn import_fs_oids(source: &mut dyn Read) -> io::Result<[Oid; NX_MAX_FILE_SYSTEMS]> {
+        let mut oids = [Oid(0); NX_MAX_FILE_SYSTEMS];
+        for entry in oids.iter_mut() {
+            *entry = Oid::import(source)?;
+        }
+        return Ok(oids);
+    }
+
+    fn import_counters(source: &mut dyn Read) -> io::Result<[u64; NX_NUM_COUNTERS]> {
+        let mut counters = [0; NX_NUM_COUNTERS];
+        for entry in counters.iter_mut() {
+            *entry = source.read_u64::<LittleEndian>()?;
+        }
+        return Ok(counters);
+    }
+
+    fn import_ephemeral_info(source: &mut dyn Read) -> io::Result<[u64; NX_EPH_INFO_COUNT]> {
+        let mut info = [0; NX_EPH_INFO_COUNT];
+        for entry in info.iter_mut() {
+            *entry = source.read_u64::<LittleEndian>()?;
+        }
+        return Ok(info);
+    }
+
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             nx_o: ObjPhys::import(source)?,
@@ -250,21 +274,25 @@ impl NxSuperblock {
             nx_test_type: source.read_u32::<LittleEndian>()?,
 
             nx_max_file_systems: source.read_u32::<LittleEndian>()?,
-            nx_fs_oid: [Oid(0); 100], //[Oid; NX_MAX_FILE_SYSTEMS],
-            nx_counters: [0; 32], //[u64; NX_NUM_COUNTERS],
+            nx_fs_oid: Self::import_fs_oids(source)?,
+            nx_counters: Self::import_counters(source)?,
             nx_blocked_out_prange: Prange::import(source)?,
             nx_evict_mapping_tree_oid: Oid::import(source)?,
             nx_flags: source.read_u64::<LittleEndian>()?,
             nx_efi_jumpstart: Paddr::import(source)?,
             nx_fusion_uuid: import_uuid(source)?,
             nx_keylocker: Prange::import(source)?,
-            nx_ephemeral_info: [0; 4], //[u64; NX_EPH_INFO_COUNT],
+            nx_ephemeral_info: Self::import_ephemeral_info(source)?,
 
             nx_test_oid: Oid::import(source)?,
 
             nx_fusion_mt_oid: Oid::import(source)?,
             nx_fusion_wbc_oid: Oid::import(source)?,
             nx_fusion_wbc: Prange::import(source)?,
+
+            nx_newest_mounted_version: source.read_u64::<LittleEndian>()?,
+
+            nx_mkb_locker: Prange::import(source)?,
         })
     }
 }
@@ -273,13 +301,13 @@ impl NxSuperblock {
 //#define NX_RESERVED_1 0x00000001LL
 //#define NX_RESERVED_2 0x00000002LL
 //#define NX_CRYPTO_SW 0x00000004LL
-//
-//
-//#define NX_FEATURE_DEFRAG 0x0000000000000001ULL
-//#define NX_FEATURE_LCFD 0x0000000000000002ULL
-//#define NX_SUPPORTED_FEATURES_MASK (NX_FEATURE_DEFRAG | NX_FEATURE_LCFD)
-//
-//
+
+
+const NX_FEATURE_DEFRAG: u64 = 0x0000000000000001;
+const NX_FEATURE_LCFD: u64 = 0x0000000000000002;
+const NX_SUPPORTED_FEATURES_MASK: u64 = (NX_FEATURE_DEFRAG | NX_FEATURE_LCFD);
+
+
 //#define NX_SUPPORTED_ROCOMPAT_MASK (0x0ULL)
 //
 //
