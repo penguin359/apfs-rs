@@ -161,7 +161,7 @@ const NX_EPH_INFO_COUNT: usize = 4;
 //#define NX_EPH_INFO_VERSION_1 1
 
 struct NxSuperblock {
-        nx_o: ObjPhys,
+        //nx_o: ObjPhys,
         nx_magic: u32,
         nx_block_size: u32,
         nx_block_count: u64,
@@ -241,7 +241,7 @@ impl NxSuperblock {
 
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            nx_o: ObjPhys::import(source)?,
+            //nx_o: ObjPhys::import(source)?,
             nx_magic: source.read_u32::<LittleEndian>()?,
             nx_block_size: source.read_u32::<LittleEndian>()?,
             nx_block_count: source.read_u64::<LittleEndian>()?,
@@ -355,7 +355,7 @@ bitflags! {
 }
 
 struct CheckpointMapPhys {
-      cpm_o:        ObjPhys,
+      //cpm_o:        ObjPhys,
       cpm_flags:    CpmFlags,
       cpm_count:    u32,
       cpm_map:      Vec<CheckpointMapping>,
@@ -364,7 +364,7 @@ struct CheckpointMapPhys {
 impl CheckpointMapPhys {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut checkpoint_map = Self {
-            cpm_o: ObjPhys::import(source)?,
+            //cpm_o: ObjPhys::import(source)?,
             cpm_flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
             cpm_count: source.read_u32::<LittleEndian>()?,
             cpm_map: vec![],

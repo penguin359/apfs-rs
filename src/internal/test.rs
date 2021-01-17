@@ -20,13 +20,14 @@ fn test_load_superblock() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
-    assert_eq!(superblock.nx_o.o_cksum, fletcher64(&buffer[8..]), "cksum");
-    assert_eq!(superblock.nx_o.o_oid, Oid(1), "oid");
-    assert_eq!(superblock.nx_o.o_xid, Xid(4), "xid");
-    assert_eq!(superblock.nx_o.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_NX_SUPERBLOCK, "type");
-    assert_eq!(superblock.nx_o.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
-    assert_eq!(superblock.nx_o.o_subtype, 0, "subtype");
+    assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.o_oid, Oid(1), "oid");
+    assert_eq!(header.o_xid, Xid(4), "xid");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_NX_SUPERBLOCK, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
+    assert_eq!(header.o_subtype, 0, "subtype");
     assert_eq!(superblock.nx_magic, NX_MAGIC, "magic");
     assert_eq!(superblock.nx_block_size, 4096, "block_size");
     assert_eq!(superblock.nx_block_count, 0x9f6, "block_count");
@@ -78,8 +79,9 @@ fn test_load_checkpoints() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
-    assert_eq!(superblock.nx_o.o_cksum, fletcher64(&buffer[8..]));
+    assert_eq!(header.o_cksum, fletcher64(&buffer[8..]));
     assert_eq!(superblock.nx_magic, NX_MAGIC);
     for idx in 0..superblock.nx_xp_desc_blocks {
         file.seek(SeekFrom::Start((superblock.nx_xp_desc_base.0 as u64 + idx as u64) * 4096)).unwrap();
@@ -93,9 +95,10 @@ fn test_load_checkpoints() {
         } else if header.o_type & OBJECT_TYPE_MASK == OBJECT_TYPE_NX_SUPERBLOCK {
             println!("Superblock");
             let mut cursor = Cursor::new(&buffer[..]);
+            let header = ObjPhys::import(&mut cursor).unwrap();
             let superblock = NxSuperblock::import(&mut cursor).unwrap();
             assert_eq!(superblock.nx_magic, NX_MAGIC);
-            println!("  TX ID: {:?}", superblock.nx_o.o_xid);
+            println!("  TX ID: {:?}", header.o_xid);
             println!("  Desc blocks: {}", superblock.nx_xp_desc_blocks);
             println!("  Data blocks: {}", superblock.nx_xp_data_blocks);
             println!("  Desc base: {:?}", superblock.nx_xp_desc_base);
@@ -115,19 +118,21 @@ fn test_load_checkpoint_mappings() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
     assert_eq!(superblock.nx_xp_desc_blocks, 8);
     let idx = 6;
     file.seek(SeekFrom::Start((superblock.nx_xp_desc_base.0 as u64 + idx as u64) * 4096)).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
     let mapping = CheckpointMapPhys::import(&mut cursor).unwrap();
-    assert_eq!(mapping.cpm_o.o_cksum, fletcher64(&buffer[8..]), "cksum");
-    assert_eq!(mapping.cpm_o.o_oid, Oid(7), "oid");
-    assert_eq!(mapping.cpm_o.o_xid, Xid(4), "xid");
-    assert_eq!(mapping.cpm_o.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_CHECKPOINT_MAP, "type");
-    assert_eq!(mapping.cpm_o.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
-    assert_eq!(mapping.cpm_o.o_subtype, 0, "subtype");
+    assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.o_oid, Oid(7), "oid");
+    assert_eq!(header.o_xid, Xid(4), "xid");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_CHECKPOINT_MAP, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
+    assert_eq!(header.o_subtype, 0, "subtype");
     assert_eq!(mapping.cpm_flags, CpmFlags::CHECKPOINT_MAP_LAST, "flags");
     assert_eq!(mapping.cpm_count, 4, "count");
 
@@ -174,6 +179,7 @@ fn test_load_checkpoint_data() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
     for idx in 0..superblock.nx_xp_data_blocks {
         file.seek(SeekFrom::Start((superblock.nx_xp_data_base.0 as u64 + idx as u64) * 4096)).unwrap();
