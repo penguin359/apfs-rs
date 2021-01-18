@@ -266,6 +266,24 @@ fn test_load_object_map_btree() {
     assert_eq!(node.btn_key_free_list.len, 0x0010, "key free list len");
     assert_eq!(node.btn_val_free_list.off, 0x20, "val free list off");
     assert_eq!(node.btn_val_free_list.len, 0x0010, "val free list len");
+    let mut entries = Vec::new();
+    for _ in 0..node.btn_table_space.len/4 {
+        entries.push(KVoff::import(&mut cursor).unwrap());
+    }
+    assert_eq!(entries[0].k, 0, "table entry 0 key off");
+    assert_eq!(entries[0].v, 0x0010, "table entry 0 val off");
+    assert_eq!(entries[1].k, 0, "table entry 1 key off");
+    assert_eq!(entries[1].v, 0x0010, "table entry 1 val off");
+    assert_eq!(entries[2].k, 0, "table entry 2 key off");
+    assert_eq!(entries[2].v, 0x0000, "table entry 2 val off");
+    let key = OmapKey::import(&mut cursor).unwrap();
+    let mut cursor = Cursor::new(&buffer[4096-40-entries[0].v as usize..4096-40]);
+    let value = OmapVal::import(&mut cursor).unwrap();
+    assert_eq!(key.ok_oid, Oid(0x402), "key oid");
+    assert_eq!(key.ok_xid, Xid(4), "key xid");
+    assert_eq!(value.ov_flags, OvFlags::empty(), "value flags");
+    assert_eq!(value.ov_size, 4096, "value size");
+    assert_eq!(value.ov_paddr, Paddr(0x66), "value paddr");
     let mut cursor = Cursor::new(&buffer[4096-40..]);
     let info = BtreeInfo::import(&mut cursor).unwrap();
     assert_eq!(info.bt_fixed.bt_flags, BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL, "flags");

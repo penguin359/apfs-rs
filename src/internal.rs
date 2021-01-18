@@ -440,6 +440,48 @@ impl OmapPhys {
     }
 }
 
+pub struct OmapKey {
+        ok_oid: Oid,
+        ok_xid: Xid,
+}
+
+impl OmapKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            ok_oid: Oid::import(source)?,
+            ok_xid: Xid::import(source)?,
+        })
+    }
+}
+
+bitflags! {
+    struct OvFlags: u32 {
+        const VAL_DELETED               = 0x00000001;
+        const VAL_SAVED                 = 0x00000002;
+        const VAL_ENCRYPTED             = 0x00000004;
+        const VAL_NOHEADER              = 0x00000008;
+        const VAL_CRYPTO_GENERATION     = 0x00000010;
+    }
+}
+
+pub struct OmapVal {
+        ov_flags: OvFlags,
+        ov_size: u32,
+        ov_paddr: Paddr,
+}
+
+impl OmapVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            ov_flags: OvFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            ov_size: source.read_u32::<LittleEndian>()?,
+            ov_paddr: Paddr::import(source)?,
+        })
+    }
+}
+
+
+// B-Tree data structures
 
 struct Nloc {
     off: u16,
@@ -462,9 +504,27 @@ struct KVloc {
     v: Nloc,
 }
 
+impl KVloc {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            k: Nloc::import(source)?,
+            v: Nloc::import(source)?,
+        })
+    }
+}
+
 struct KVoff {
     k: u16,
     v: u16,
+}
+
+impl KVoff {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            k: source.read_u16::<LittleEndian>()?,
+            v: source.read_u16::<LittleEndian>()?,
+        })
+    }
 }
 
 bitflags! {
