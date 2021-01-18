@@ -29,7 +29,7 @@ mod tests {
     #[test]
     fn test_load_block0() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let mut block_result = apfs.load_block(Oid(0));
+        let mut block_result = apfs.load_block(Paddr(0));
         assert!(block_result.is_ok());
         let block = block_result.unwrap();
         assert_eq!(block.len(), 4096);
@@ -43,17 +43,57 @@ mod tests {
     #[test]
     fn test_load_nonexistent_block() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let block_result = apfs.load_block(Oid(10000000));
+        let block_result = apfs.load_block(Paddr(10000000));
         assert!(block_result.is_err());
     }
 
     #[test]
     fn test_load_block0_object() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let object_result = apfs.load_object(Oid(0));
+        let object_result = apfs.load_object(Paddr(0));
         assert!(object_result.is_ok());
-        let _object = object_result.unwrap();
-        //assert_eq!(block.len(), 4096);
+        let object = object_result.unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        assert_eq!(superblock.body.nx_block_size, 4096);
+        //let mut cursor = Cursor::new(&block[..]);
+        //let header = ObjPhys::import(&mut cursor).unwrap();
+        //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
+        //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+        //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
+    }
+
+    #[test]
+    fn test_load_block0_bad_checksum() {
+        let block = [0u8; 4096];
+        let mut source = Cursor::new(&block[..]);
+        let mut apfs = APFS { source };
+        let object_result = apfs.load_object(Paddr(0));
+        assert!(object_result.is_err(), "failed to detect bad checksum");
+    }
+
+    #[test]
+    fn test_load_checkpoint_descriptors() {
+        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let object = apfs.load_object(Paddr(0)).unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let object_result = apfs.load_object(superblock.body.nx_xp_desc_base);
+        assert!(object_result.is_ok(), "Bad checkpoint object load");
+        let object = object_result.unwrap();
+        let mapping = match object {
+            APFSObject::CheckpointMapping(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        for idx in 0..superblock.body.nx_xp_desc_blocks {
+            let addr = superblock.body.nx_xp_desc_base.0 + idx as i64;
+            let object_result = apfs.load_object(Paddr(addr));
+            assert!(object_result.is_ok(), "Bad checkpoint object load");
+        }
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
         //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
@@ -65,6 +105,8 @@ mod tests {
 use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
+
+use num_traits::FromPrimitive;
 
 #[macro_use]
 mod int_strings;
@@ -90,31 +132,47 @@ enum APFSObject {
     CheckpointMapping(CheckpointMapPhysObject),
 }
 
-struct APFS {
-    file: File,
+struct APFS<S: Read + Seek> {
+    //file: File,
+    source: S,
 }
 
-impl APFS {
+impl APFS<File> {
     pub fn open(filename: &Path) -> io::Result<Self> {
-        let file = File::open(filename)?;
-        Ok(APFS { file })
+        let source = File::open(filename)?;
+        Ok(APFS { source })
     }
+}
 
-    fn load_block(&mut self, oid: Oid) -> io::Result<Vec<u8>> {
+impl<S: Read + Seek> APFS<S> {
+    fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
         let mut block = vec![0; 4096];
-        self.file.seek(SeekFrom::Start((oid.0) * 4096))?;
-        self.file.read_exact(&mut block)?;
+        self.source.seek(SeekFrom::Start((addr.0 as u64) * 4096))?;
+        self.source.read_exact(&mut block)?;
         Ok(block)
     }
 
-    fn load_object(&mut self, oid: Oid) -> io::Result<APFSObject> {
-        let block = self.load_block(oid)?;
+    fn load_object(&mut self, addr: Paddr) -> io::Result<APFSObject> {
+        let block = self.load_block(addr)?;
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor)?;
-        let body = NxSuperblock::import(&mut cursor)?;
-        Ok(APFSObject::Superblock(NxSuperblockObject {
-            header,
-            body,
-        }))
+        if header.o_cksum != fletcher64(&block[8..]) {
+            return Err(io::Error::new(io::ErrorKind::Other, "Bad object checksum"));
+        }
+        let r#type = FromPrimitive::from_u32(header.o_type & OBJECT_TYPE_MASK);
+        let object = match r#type {
+            Some(ObjectType::NxSuperblock) =>
+                APFSObject::Superblock(NxSuperblockObject {
+                header,
+                body: NxSuperblock::import(&mut cursor)?,
+            }),
+            Some(ObjectType::CheckpointMap) =>
+                APFSObject::CheckpointMapping(CheckpointMapPhysObject {
+                header,
+                body: CheckpointMapPhys::import(&mut cursor)?,
+            }),
+            _ => { return Err(io::Error::new(io::ErrorKind::Other, "Unsupported type")); },
+        };
+        Ok(object)
     }
 }

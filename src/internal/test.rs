@@ -200,3 +200,33 @@ fn test_load_checkpoint_data() {
     }
     //panic!("Dump");
 }
+
+#[test]
+fn test_load_object_map() {
+    let mut buffer = [0u8; 4096];
+    let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let superblock = NxSuperblock::import(&mut cursor).unwrap();
+    file.seek(SeekFrom::Start(superblock.nx_omap_oid.0 * 4096)).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let omap = OmapPhys::import(&mut cursor).unwrap();
+    assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.o_oid, Oid(0x067), "oid");
+    assert_eq!(header.o_xid, Xid(4), "xid");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::Omap as u32, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
+    assert_eq!(header.o_subtype, 0, "subtype");
+    assert_eq!(omap.om_flags, OmFlags::MANUALLY_MANAGED, "flags");
+    assert_eq!(omap.om_snap_count, 0, "snap_count");
+    assert_eq!(omap.om_tree_type, StorageType::Physical as u32 | ObjectType::Btree as u32, "tree_type");
+    assert_eq!(omap.om_snapshot_tree_type, StorageType::Physical as u32 | ObjectType::Btree as u32, "snapshot_tree_type");
+    assert_eq!(omap.om_tree_oid, Oid(0x068), "tree_oid");
+    assert_eq!(omap.om_snapshot_tree_oid, Oid(0), "snapshot_tree_oid");
+    assert_eq!(omap.om_most_recent_snap, Xid(0), "most_recent_snap");
+    assert_eq!(omap.om_pending_revert_min, Xid(0), "pending_revert_min");
+    assert_eq!(omap.om_pending_revert_max, Xid(0), "pending_revert_max");
+}

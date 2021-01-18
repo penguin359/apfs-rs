@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use num_derive::FromPrimitive;
+
 use std::io::{self, prelude::*};
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -10,7 +12,7 @@ use uuid::{Bytes, Uuid};
 mod test;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct Paddr(i64);
+pub struct Paddr(pub i64);
 
 impl Paddr {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
@@ -93,6 +95,7 @@ const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
 
 #[repr(u32)]
+#[derive(FromPrimitive)]
 pub enum ObjectType {
     NxSuperblock         = 0x00000001,
 
@@ -130,9 +133,9 @@ pub enum ObjectType {
     Invalid               = 0x00000000,
     Test                  = 0x000000ff,
 
-    ContainerKeybag      = u32_code!(b"keys"),
-    VolumeKeybag         = u32_code!(b"recs"),
-    MediaKeybag          = u32_code!(b"mkey"),
+    //ContainerKeybag      = u32_code!(b"keys"),
+    //VolumeKeybag         = u32_code!(b"recs"),
+    //MediaKeybag          = u32_code!(b"mkey"),
 }
 
 
@@ -167,9 +170,9 @@ const NX_EPH_INFO_COUNT: usize = 4;
 
 pub struct NxSuperblock {
         //nx_o: ObjPhys,
-        nx_magic: u32,
-        nx_block_size: u32,
-        nx_block_count: u64,
+        pub nx_magic: u32,
+        pub nx_block_size: u32,
+        pub nx_block_count: u64,
 
         nx_features: u64,
         nx_readonly_compatible_features: u64,
@@ -180,16 +183,16 @@ pub struct NxSuperblock {
         nx_next_oid: Oid,
         nx_next_xid: Xid,
 
-        nx_xp_desc_blocks: u32,
-        nx_xp_data_blocks: u32,
-        nx_xp_desc_base: Paddr,
-        nx_xp_data_base: Paddr,
-        nx_xp_desc_next: u32,
-        nx_xp_data_next: u32,
-        nx_xp_desc_index: u32,
-        nx_xp_desc_len: u32,
-        nx_xp_data_index: u32,
-        nx_xp_data_len: u32,
+        pub nx_xp_desc_blocks: u32,
+        pub nx_xp_data_blocks: u32,
+        pub nx_xp_desc_base: Paddr,
+        pub nx_xp_data_base: Paddr,
+        pub nx_xp_desc_next: u32,
+        pub nx_xp_data_next: u32,
+        pub nx_xp_desc_index: u32,
+        pub nx_xp_desc_len: u32,
+        pub nx_xp_data_index: u32,
+        pub nx_xp_data_len: u32,
 
         nx_spaceman_oid: Oid,
         nx_omap_oid: Oid,
@@ -393,3 +396,46 @@ impl CheckpointMapPhys {
 
 
 pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
+
+
+bitflags! {
+    struct OmFlags: u32 {
+        const MANUALLY_MANAGED     = 0x00000001;
+        const ENCRYPTING           = 0x00000002;
+        const DECRYPTING           = 0x00000004;
+        const KEYROLLING           = 0x00000008;
+        const CRYPTO_GENERATION    = 0x00000010;
+
+        const VALID_FLAGS          = 0x0000001f;
+    }
+}
+
+pub struct OmapPhys {
+        //om_o: ObjPhys,
+        om_flags: OmFlags,
+        om_snap_count: u32,
+        om_tree_type: u32,
+        om_snapshot_tree_type: u32,
+        om_tree_oid: Oid,
+        om_snapshot_tree_oid: Oid,
+        om_most_recent_snap: Xid,
+        om_pending_revert_min: Xid,
+        om_pending_revert_max: Xid,
+}
+
+impl OmapPhys {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            //om_o: ObjPhys::import(source)?,
+            om_flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            om_snap_count: source.read_u32::<LittleEndian>()?,
+            om_tree_type: source.read_u32::<LittleEndian>()?,
+            om_snapshot_tree_type: source.read_u32::<LittleEndian>()?,
+            om_tree_oid: Oid::import(source)?,
+            om_snapshot_tree_oid: Oid::import(source)?,
+            om_most_recent_snap: Xid::import(source)?,
+            om_pending_revert_min: Xid::import(source)?,
+            om_pending_revert_max: Xid::import(source)?,
+        })
+    }
+}
