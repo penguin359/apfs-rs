@@ -1,13 +1,14 @@
-use std::fs::File;
-use std::io::Cursor;
-use std::io::prelude::*;
-use std::path::PathBuf;
-
-use byteorder::{LittleEndian, ReadBytesExt};
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use std::fs::File;
+    use std::io::Cursor;
+    use std::io::prelude::*;
+    use std::path::PathBuf;
+
+    use byteorder::{LittleEndian, ReadBytesExt};
 
     #[test]
     fn test_simple_fletcher64() {

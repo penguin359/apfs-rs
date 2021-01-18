@@ -6,6 +6,8 @@ extern crate bitflags;
 mod tests {
     use super::*;
 
+    use std::path::PathBuf;
+
     fn test_dir() -> PathBuf {
         let root = ::std::env::var_os("CARGO_MANIFEST_DIR").map(|x| PathBuf::from(x))
             .unwrap_or_else(|| ::std::env::current_dir().unwrap());
@@ -35,7 +37,7 @@ mod tests {
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
         assert_eq!(header.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_NX_SUPERBLOCK, "type");
-        assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
+        assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     }
 
     #[test]
@@ -48,7 +50,7 @@ mod tests {
     #[test]
     fn test_load_block0_object() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let mut object_result = apfs.load_object(Oid(0));
+        let object_result = apfs.load_object(Oid(0));
         assert!(object_result.is_ok());
         let object = object_result.unwrap();
         //assert_eq!(block.len(), 4096);
@@ -62,7 +64,7 @@ mod tests {
 
 use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[macro_use]
 mod int_strings;
@@ -78,8 +80,14 @@ struct NxSuperblockObject {
     body: NxSuperblock,
 }
 
+struct CheckpointMapPhysObject {
+    header: ObjPhys,
+    body: CheckpointMapPhys,
+}
+
 enum APFSObject {
     Superblock(NxSuperblockObject),
+    CheckpointMapping(CheckpointMapPhysObject),
 }
 
 struct APFS {

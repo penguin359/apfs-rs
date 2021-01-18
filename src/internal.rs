@@ -133,9 +133,11 @@ const OBJECT_TYPE_VOLUME_KEYBAG         : u32 = u32_code!(b"recs");
 const OBJECT_TYPE_MEDIA_KEYBAG          : u32 = u32_code!(b"mkey");
 
 
-const OBJ_VIRTUAL                       : u32 = 0x00000000;
-pub const OBJ_EPHEMERAL                     : u32 = 0x80000000;
-const OBJ_PHYSICAL                      : u32 = 0x40000000;
+pub enum StorageType {
+    Virtual                       = 0x00000000,
+    Ephemeral                     = 0x80000000,
+    Physical                      = 0x40000000,
+}
 
 const OBJ_NOHEADER                      : u32 = 0x20000000;
 const OBJ_ENCRYPTED                     : u32 = 0x10000000;
@@ -354,7 +356,7 @@ bitflags! {
     }
 }
 
-struct CheckpointMapPhys {
+pub struct CheckpointMapPhys {
       //cpm_o:        ObjPhys,
       cpm_flags:    CpmFlags,
       cpm_count:    u32,
@@ -424,4 +426,4 @@ enum ObjectType {
     Test                = 0x000000ff,
 }
 
-const APFS_MAGIC: u32   = u32_code!(b"BSXN");
+pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
