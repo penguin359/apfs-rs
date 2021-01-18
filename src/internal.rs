@@ -39,7 +39,7 @@ fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct Oid(u64);
+pub struct Oid(pub u64);
 
 impl Oid {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
@@ -58,16 +58,16 @@ impl Xid {
 
 
 #[derive(Debug)]
-struct ObjPhys {
-    o_cksum: u64,
+pub struct ObjPhys {
+    pub o_cksum: u64,
     o_oid: Oid,
     o_xid: Xid,
-    o_type: u32,
+    pub o_type: u32,
     o_subtype: u32,
 }
 
 impl ObjPhys {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             o_cksum: source.read_u64::<LittleEndian>()?,
             o_oid: Oid::import(source)?,
@@ -85,14 +85,14 @@ const OID_INVALID                       : Oid = Oid(0);
 const OID_RESERVED_COUNT                : u64 = 1024;
 
 
-const OBJECT_TYPE_MASK                  : u32 = 0x0000ffff;
-const OBJECT_TYPE_FLAGS_MASK            : u32 = 0xffff0000;
+pub const OBJECT_TYPE_MASK                  : u32 = 0x0000ffff;
+pub const OBJECT_TYPE_FLAGS_MASK            : u32 = 0xffff0000;
 
 const OBJ_STORAGETYPE_MASK              : u32 = 0xc0000000;
 const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
 
-const OBJECT_TYPE_NX_SUPERBLOCK         : u32 = 0x00000001;
+pub const OBJECT_TYPE_NX_SUPERBLOCK         : u32 = 0x00000001;
 
 const OBJECT_TYPE_BTREE                 : u32 = 0x00000002;
 const OBJECT_TYPE_BTREE_NODE            : u32 = 0x00000003;
@@ -134,7 +134,7 @@ const OBJECT_TYPE_MEDIA_KEYBAG          : u32 = u32_code!(b"mkey");
 
 
 const OBJ_VIRTUAL                       : u32 = 0x00000000;
-const OBJ_EPHEMERAL                     : u32 = 0x80000000;
+pub const OBJ_EPHEMERAL                     : u32 = 0x80000000;
 const OBJ_PHYSICAL                      : u32 = 0x40000000;
 
 const OBJ_NOHEADER                      : u32 = 0x20000000;
@@ -160,7 +160,7 @@ const NX_EPH_INFO_COUNT: usize = 4;
 //#define NX_TX_MIN_CHECKPOINT_COUNT 4
 //#define NX_EPH_INFO_VERSION_1 1
 
-struct NxSuperblock {
+pub struct NxSuperblock {
         //nx_o: ObjPhys,
         nx_magic: u32,
         nx_block_size: u32,
@@ -239,7 +239,7 @@ impl NxSuperblock {
         return Ok(info);
     }
 
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             //nx_o: ObjPhys::import(source)?,
             nx_magic: source.read_u32::<LittleEndian>()?,
@@ -362,7 +362,7 @@ struct CheckpointMapPhys {
 }
 
 impl CheckpointMapPhys {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut checkpoint_map = Self {
             //cpm_o: ObjPhys::import(source)?,
             cpm_flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
