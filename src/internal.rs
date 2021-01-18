@@ -92,45 +92,48 @@ const OBJ_STORAGETYPE_MASK              : u32 = 0xc0000000;
 const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
 
-pub const OBJECT_TYPE_NX_SUPERBLOCK         : u32 = 0x00000001;
+#[repr(u32)]
+pub enum ObjectType {
+    NxSuperblock         = 0x00000001,
 
-const OBJECT_TYPE_BTREE                 : u32 = 0x00000002;
-const OBJECT_TYPE_BTREE_NODE            : u32 = 0x00000003;
+    Btree                 = 0x00000002,
+    BtreeNode            = 0x00000003,
 
-const OBJECT_TYPE_SPACEMAN              : u32 = 0x00000005;
-const OBJECT_TYPE_SPACEMAN_CAB          : u32 = 0x00000006;
-const OBJECT_TYPE_SPACEMAN_CIB          : u32 = 0x00000007;
-const OBJECT_TYPE_SPACEMAN_BITMAP       : u32 = 0x00000008;
-const OBJECT_TYPE_SPACEMAN_FREE_QUEUE   : u32 = 0x00000009;
+    Spaceman              = 0x00000005,
+    SpacemanCab          = 0x00000006,
+    SpacemanCib          = 0x00000007,
+    SpacemanBitmap       = 0x00000008,
+    SpacemanFreeQueue   = 0x00000009,
 
-const OBJECT_TYPE_EXTENT_LIST_TREE      : u32 = 0x0000000a;
-const OBJECT_TYPE_OMAP                  : u32 = 0x0000000b;
-const OBJECT_TYPE_CHECKPOINT_MAP        : u32 = 0x0000000c;
+    ExtentListTree      = 0x0000000a,
+    Omap                  = 0x0000000b,
+    CheckpointMap        = 0x0000000c,
 
-const OBJECT_TYPE_FS                    : u32 = 0x0000000d;
-const OBJECT_TYPE_FSTREE                : u32 = 0x0000000e;
-const OBJECT_TYPE_BLOCKREFTREE          : u32 = 0x0000000f;
-const OBJECT_TYPE_SNAPMETATREE          : u32 = 0x00000010;
+    Fs                    = 0x0000000d,
+    Fstree                = 0x0000000e,
+    Blockreftree          = 0x0000000f,
+    Snapmetatree          = 0x00000010,
 
-const OBJECT_TYPE_NX_REAPER             : u32 = 0x00000011;
-const OBJECT_TYPE_NX_REAP_LIST          : u32 = 0x00000012;
-const OBJECT_TYPE_OMAP_SNAPSHOT         : u32 = 0x00000013;
-const OBJECT_TYPE_EFI_JUMPSTART         : u32 = 0x00000014;
-const OBJECT_TYPE_FUSION_MIDDLE_TREE    : u32 = 0x00000015;
-const OBJECT_TYPE_NX_FUSION_WBC         : u32 = 0x00000016;
-const OBJECT_TYPE_NX_FUSION_WBC_LIST    : u32 = 0x00000017;
-const OBJECT_TYPE_ER_STATE              : u32 = 0x00000018;
+    NxReaper             = 0x00000011,
+    NxReapList          = 0x00000012,
+    OmapSnapshot         = 0x00000013,
+    EfiJumpstart         = 0x00000014,
+    FusionMiddleTree    = 0x00000015,
+    NxFusionWbc         = 0x00000016,
+    NxFusionWbcList    = 0x00000017,
+    ErState              = 0x00000018,
 
-const OBJECT_TYPE_GBITMAP               : u32 = 0x00000019;
-const OBJECT_TYPE_GBITMAP_TREE          : u32 = 0x0000001a;
-const OBJECT_TYPE_GBITMAP_BLOCK         : u32 = 0x0000001b;
+    Gbitmap               = 0x00000019,
+    GbitmapTree          = 0x0000001a,
+    GbitmapBlock         = 0x0000001b,
 
-const OBJECT_TYPE_INVALID               : u32 = 0x00000000;
-const OBJECT_TYPE_TEST                  : u32 = 0x000000ff;
+    Invalid               = 0x00000000,
+    Test                  = 0x000000ff,
 
-const OBJECT_TYPE_CONTAINER_KEYBAG      : u32 = u32_code!(b"keys");
-const OBJECT_TYPE_VOLUME_KEYBAG         : u32 = u32_code!(b"recs");
-const OBJECT_TYPE_MEDIA_KEYBAG          : u32 = u32_code!(b"mkey");
+    ContainerKeybag      = u32_code!(b"keys"),
+    VolumeKeybag         = u32_code!(b"recs"),
+    MediaKeybag          = u32_code!(b"mkey"),
+}
 
 
 pub enum StorageType {
@@ -388,42 +391,5 @@ impl CheckpointMapPhys {
 
 
 
-#[repr(u32)]
-enum ObjectType {
-    NxSuperblock        = 0x00000001,
-    Btree               = 0x00000002,
-    BtreeNode           = 0x00000003,
-    Spaceman            = 0x00000005,
-    SpacemanCab         = 0x00000006,
-    SpacemanCib         = 0x00000007,
-    SpacemanBitmap      = 0x00000008,
-    SpacemanFreeQueue   = 0x00000009,
-    ExtentListTree      = 0x0000000a,
-    Omap                = 0x0000000b,
-    CheckpointMap       = 0x0000000c,
-    Fs                  = 0x0000000d,
-    Fstree              = 0x0000000e,
-    Blockreftree        = 0x0000000f,
-    Snapmetatree        = 0x00000010,
-    NxReaper            = 0x00000011,
-    NxReapList          = 0x00000012,
-    OmapSnapshot        = 0x00000013,
-    EfiJumpstart        = 0x00000014,
-    FusionMiddleTree    = 0x00000015,
-    NxFusionWbc         = 0x00000016,
-    NxFusionWbcList     = 0x00000017,
-    ErState             = 0x00000018,
-    Gbitmap             = 0x00000019,
-    GbitmapTree         = 0x0000001a,
-    GbitmapBlock        = 0x0000001b,
-    ErRecoveryBlock     = 0x0000001c,
-    SnapMetaExt         = 0x0000001d,
-    IntegrityMeta       = 0x0000001e,
-    FextTree            = 0x0000001f,
-    Reserved20          = 0x00000020,
-
-    Invalid             = 0x00000000,
-    Test                = 0x000000ff,
-}
 
 pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");

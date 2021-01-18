@@ -1,7 +1,6 @@
 use super::*;
 
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::Cursor;
 use std::io::SeekFrom;
 use std::path::PathBuf;
@@ -25,7 +24,7 @@ fn test_load_superblock() {
     assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.o_oid, Oid(1), "oid");
     assert_eq!(header.o_xid, Xid(4), "xid");
-    assert_eq!(header.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_NX_SUPERBLOCK, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
     assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(header.o_subtype, 0, "subtype");
     assert_eq!(superblock.nx_magic, NX_MAGIC, "magic");
@@ -89,10 +88,10 @@ fn test_load_checkpoints() {
         let mut cursor = Cursor::new(&buffer[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.o_cksum, fletcher64(&buffer[8..]));
-        if header.o_type & OBJECT_TYPE_MASK == OBJECT_TYPE_CHECKPOINT_MAP {
+        if header.o_type & OBJECT_TYPE_MASK == ObjectType::CheckpointMap as u32 {
             println!("Checkpoint map");
             //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL);
-        } else if header.o_type & OBJECT_TYPE_MASK == OBJECT_TYPE_NX_SUPERBLOCK {
+        } else if header.o_type & OBJECT_TYPE_MASK == ObjectType::NxSuperblock as u32 {
             println!("Superblock");
             let mut cursor = Cursor::new(&buffer[..]);
             let header = ObjPhys::import(&mut cursor).unwrap();
@@ -123,7 +122,7 @@ fn test_load_checkpoint_mappings() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
-    let header = ObjPhys::import(&mut cursor).unwrap();
+    let _header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
     assert_eq!(superblock.nx_xp_desc_blocks, 8);
     let idx = 6;
@@ -135,13 +134,13 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.o_oid, Oid(7), "oid");
     assert_eq!(header.o_xid, Xid(4), "xid");
-    assert_eq!(header.o_type & OBJECT_TYPE_MASK, OBJECT_TYPE_CHECKPOINT_MAP, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
     //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
     assert_eq!(header.o_subtype, 0, "subtype");
     assert_eq!(mapping.cpm_flags, CpmFlags::CHECKPOINT_MAP_LAST, "flags");
     assert_eq!(mapping.cpm_count, 4, "count");
 
-    assert_eq!(mapping.cpm_map[0].cpm_type & OBJECT_TYPE_MASK, OBJECT_TYPE_SPACEMAN, "type");
+    assert_eq!(mapping.cpm_map[0].cpm_type & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
     assert_eq!(mapping.cpm_map[0].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.cpm_map[0].cpm_subtype, 0, "subtype");
     assert_eq!(mapping.cpm_map[0].cpm_size, 4096, "size");
@@ -150,25 +149,25 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(mapping.cpm_map[0].cpm_oid, Oid(0x400), "oid");
     assert_eq!(mapping.cpm_map[0].cpm_paddr, Oid(0x13), "paddr");
 
-    assert_eq!(mapping.cpm_map[1].cpm_type & OBJECT_TYPE_MASK, OBJECT_TYPE_BTREE, "type");
+    assert_eq!(mapping.cpm_map[1].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
     assert_eq!(mapping.cpm_map[1].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[1].cpm_subtype, OBJECT_TYPE_SPACEMAN_FREE_QUEUE, "subtype");
+    assert_eq!(mapping.cpm_map[1].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
     assert_eq!(mapping.cpm_map[1].cpm_size, 4096, "size");
     assert_eq!(mapping.cpm_map[1].cpm_pad, 0, "pad");
     assert_eq!(mapping.cpm_map[1].cpm_fs_oid, Oid(0), "fs oid");
     assert_eq!(mapping.cpm_map[1].cpm_oid, Oid(0x403), "oid");
     assert_eq!(mapping.cpm_map[1].cpm_paddr, Oid(0x14), "paddr");
 
-    assert_eq!(mapping.cpm_map[2].cpm_type & OBJECT_TYPE_MASK, OBJECT_TYPE_BTREE, "type");
+    assert_eq!(mapping.cpm_map[2].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
     assert_eq!(mapping.cpm_map[2].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[2].cpm_subtype, OBJECT_TYPE_SPACEMAN_FREE_QUEUE, "subtype");
+    assert_eq!(mapping.cpm_map[2].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
     assert_eq!(mapping.cpm_map[2].cpm_size, 4096, "size");
     assert_eq!(mapping.cpm_map[2].cpm_pad, 0, "pad");
     assert_eq!(mapping.cpm_map[2].cpm_fs_oid, Oid(0), "fs oid");
     assert_eq!(mapping.cpm_map[2].cpm_oid, Oid(0x405), "oid");
     assert_eq!(mapping.cpm_map[2].cpm_paddr, Oid(0x15), "paddr");
 
-    assert_eq!(mapping.cpm_map[3].cpm_type & OBJECT_TYPE_MASK, OBJECT_TYPE_NX_REAPER, "type");
+    assert_eq!(mapping.cpm_map[3].cpm_type & OBJECT_TYPE_MASK, ObjectType::NxReaper as u32, "type");
     assert_eq!(mapping.cpm_map[3].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.cpm_map[3].cpm_subtype, 0, "subtype");
     assert_eq!(mapping.cpm_map[3].cpm_size, 4096, "size");
@@ -184,7 +183,7 @@ fn test_load_checkpoint_data() {
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
-    let header = ObjPhys::import(&mut cursor).unwrap();
+    let _header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
     for idx in 0..superblock.nx_xp_data_blocks {
         file.seek(SeekFrom::Start((superblock.nx_xp_data_base.0 as u64 + idx as u64) * 4096)).unwrap();
@@ -195,7 +194,7 @@ fn test_load_checkpoint_data() {
             continue;
         }
         assert_eq!(header.o_cksum, fletcher64(&buffer[8..]));
-        //if header.o_type & OBJECT_TYPE_MASK == OBJECT_TYPE_CHECKPOINT_MAP {
+        //if header.o_type & OBJECT_TYPE_MASK == ObjectType::CheckpointMap as u32 {
         //println!("  Data block type: {:?}", header);
         println!("  Data block type: {:?} - {:?}", header.o_type & OBJECT_TYPE_MASK, header.o_subtype);
     }
