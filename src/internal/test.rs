@@ -230,3 +230,50 @@ fn test_load_object_map() {
     assert_eq!(omap.om_pending_revert_min, Xid(0), "pending_revert_min");
     assert_eq!(omap.om_pending_revert_max, Xid(0), "pending_revert_max");
 }
+
+#[test]
+fn test_load_object_map_btree() {
+    let mut buffer = [0u8; 4096];
+    let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let superblock = NxSuperblock::import(&mut cursor).unwrap();
+    file.seek(SeekFrom::Start(superblock.nx_omap_oid.0 * 4096)).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let omap = OmapPhys::import(&mut cursor).unwrap();
+    file.seek(SeekFrom::Start(omap.om_tree_oid.0 * 4096)).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let node = BtreeNodePhys::import(&mut cursor).unwrap();
+    assert_eq!(header.o_cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.o_oid, Oid(0x068), "oid");
+    assert_eq!(header.o_xid, Xid(4), "xid");
+    assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
+    assert_eq!(header.o_subtype, ObjectType::Omap as u32, "subtype");
+    assert_eq!(node.btn_flags, BtnFlags::ROOT | BtnFlags::LEAF | BtnFlags::FIXED_KV_SIZE, "flags");
+    assert_eq!(node.btn_level, 0, "level");
+    assert_eq!(node.btn_nkeys, 1, "nkeys");
+    assert_eq!(node.btn_table_space.off, 0, "table space off");
+    assert_eq!(node.btn_table_space.len, 0x01c0, "table space len");
+    assert_eq!(node.btn_free_space.off, 0x20, "free space off");
+    assert_eq!(node.btn_free_space.len, 0x0da0, "free space len");
+    assert_eq!(node.btn_key_free_list.off, 0x10, "key free list off");
+    assert_eq!(node.btn_key_free_list.len, 0x0010, "key free list len");
+    assert_eq!(node.btn_val_free_list.off, 0x20, "val free list off");
+    assert_eq!(node.btn_val_free_list.len, 0x0010, "val free list len");
+    let mut cursor = Cursor::new(&buffer[4096-40..]);
+    let info = BtreeInfo::import(&mut cursor).unwrap();
+    assert_eq!(info.bt_fixed.bt_flags, BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL, "flags");
+    assert_eq!(info.bt_fixed.bt_node_size, 4096, "node size");
+    assert_eq!(info.bt_fixed.bt_key_size, 16, "key size");
+    assert_eq!(info.bt_fixed.bt_val_size, 16, "val size");
+    assert_eq!(info.bt_longest_key, 16, "longest key");
+    assert_eq!(info.bt_longest_val, 16, "longest val");
+    assert_eq!(info.bt_key_count, 1, "key count");
+    assert_eq!(info.bt_node_count, 1, "node count");
+}

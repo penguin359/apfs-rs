@@ -439,3 +439,125 @@ impl OmapPhys {
         })
     }
 }
+
+
+struct Nloc {
+    off: u16,
+    len: u16,
+}
+
+const BTOFF_INVALID: u16 = 0xffff;
+
+impl Nloc {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            off: source.read_u16::<LittleEndian>()?,
+            len: source.read_u16::<LittleEndian>()?,
+        })
+    }
+}
+
+struct KVloc {
+    k: Nloc,
+    v: Nloc,
+}
+
+struct KVoff {
+    k: u16,
+    v: u16,
+}
+
+bitflags! {
+    struct BtnFlags: u16 {
+        const ROOT               = 0x0001;
+        const LEAF               = 0x0002;
+
+        const FIXED_KV_SIZE      = 0x0004;
+        const HASHED             = 0x0008;
+        const NOHEADER           = 0x0010;
+
+        const CHECK_KOFF_INVAL   = 0x8000;
+    }
+}
+
+pub struct BtreeNodePhys {
+        //btn_o: ObjPhys,
+        btn_flags: BtnFlags,
+        btn_level: u16,
+        btn_nkeys: u32,
+        btn_table_space: Nloc,
+        btn_free_space: Nloc,
+        btn_key_free_list: Nloc,
+        btn_val_free_list: Nloc,
+        btn_data: Vec<u64>,
+}
+
+impl BtreeNodePhys {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            //btn_o: ObjPhys::import(source)?,
+            btn_flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?).unwrap(),
+            btn_level: source.read_u16::<LittleEndian>()?,
+            btn_nkeys: source.read_u32::<LittleEndian>()?,
+            btn_table_space: Nloc::import(source)?,
+            btn_free_space: Nloc::import(source)?,
+            btn_key_free_list: Nloc::import(source)?,
+            btn_val_free_list: Nloc::import(source)?,
+            btn_data: vec![],
+        })
+    }
+}
+
+bitflags! {
+    struct BtFlags: u32 {
+        const UINT64_KEYS         = 0x00000001;
+        const SEQUENTIAL_INSERT   = 0x00000002;
+        const ALLOW_GHOSTS        = 0x00000004;
+        const EPHEMERAL           = 0x00000008;
+        const PHYSICAL            = 0x00000010;
+        const NONPERSISTENT       = 0x00000020;
+        const KV_NONALIGNED       = 0x00000040;
+        const HASHED              = 0x00000080;
+        const NOHEADER            = 0x00000100;
+    }
+}
+
+pub struct BtreeInfoFixed {
+        //bt_o: ObjPhys,
+        bt_flags: BtFlags,
+        bt_node_size: u32,
+        bt_key_size: u32,
+        bt_val_size: u32,
+}
+
+impl BtreeInfoFixed {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            //bt_o: ObjPhys::import(source)?,
+            bt_flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            bt_node_size: source.read_u32::<LittleEndian>()?,
+            bt_key_size: source.read_u32::<LittleEndian>()?,
+            bt_val_size: source.read_u32::<LittleEndian>()?,
+        })
+    }
+}
+
+pub struct BtreeInfo {
+        bt_fixed: BtreeInfoFixed,
+        bt_longest_key: u32,
+        bt_longest_val: u32,
+        bt_key_count: u64,
+        bt_node_count: u64,
+}
+
+impl BtreeInfo {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            bt_fixed: BtreeInfoFixed::import(source)?,
+            bt_longest_key: source.read_u32::<LittleEndian>()?,
+            bt_longest_val: source.read_u32::<LittleEndian>()?,
+            bt_key_count: source.read_u64::<LittleEndian>()?,
+            bt_node_count: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
