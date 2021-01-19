@@ -95,7 +95,7 @@ const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
 
 #[repr(u32)]
-#[derive(FromPrimitive)]
+#[derive(Debug, FromPrimitive)]
 pub enum ObjectType {
     NxSuperblock         = 0x00000001,
 
@@ -194,9 +194,9 @@ pub struct NxSuperblock {
         pub nx_xp_data_index: u32,
         pub nx_xp_data_len: u32,
 
-        nx_spaceman_oid: Oid,
-        nx_omap_oid: Oid,
-        nx_reaper_oid: Oid,
+        pub nx_spaceman_oid: Oid,
+        pub nx_omap_oid: Oid,
+        pub nx_reaper_oid: Oid,
 
         nx_test_type: u32,
 
@@ -416,7 +416,7 @@ pub struct OmapPhys {
         om_snap_count: u32,
         om_tree_type: u32,
         om_snapshot_tree_type: u32,
-        om_tree_oid: Oid,
+        pub om_tree_oid: Oid,
         om_snapshot_tree_oid: Oid,
         om_most_recent_snap: Xid,
         om_pending_revert_min: Xid,
