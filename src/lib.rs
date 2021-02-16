@@ -124,6 +124,25 @@ mod tests {
             _ => { panic!("Wrong object type!"); },
         };
     }
+
+    #[test]
+    fn test_load_object_map_btree() {
+        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let object = apfs.load_object_addr(Paddr(0)).unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let object = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical).unwrap();
+        let omap = match object {
+            APFSObject::ObjectMap(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let btree_result = apfs.load_btree(omap.body.om_tree_oid, StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        assert_eq!(btree.records.len(), 1);
+    }
 }
 
 use std::fs::File;
@@ -139,6 +158,33 @@ mod fletcher;
 
 use internal::*;
 use fletcher::fletcher64;
+
+pub use internal::Paddr;
+
+
+struct Key {
+
+}
+
+struct Value {
+}
+
+struct Record {
+    key: Key,
+    value: Value,
+}
+
+//pub enum Node<K, R> {
+//    //HeaderNode(HeaderNode),
+//    //MapNode(MapNode),
+//    IndexNode(IndexNode<K>),
+//    //LeafNode(LeafNode<R>),
+//}
+
+struct Btree {
+    body: BtreeNodeObject,
+    records: Vec<u8>,
+}
 
 
 struct NxSuperblockObject {
@@ -168,13 +214,13 @@ enum APFSObject {
     BtreeNode(BtreeNodeObject),
 }
 
-struct APFS<S: Read + Seek> {
+pub struct APFS<S: Read + Seek> {
     //file: File,
     source: S,
 }
 
 impl APFS<File> {
-    pub fn open(filename: &Path) -> io::Result<Self> {
+    pub fn open<P: AsRef<Path>>(filename: P) -> io::Result<Self> {
         let source = File::open(filename)?;
         Ok(APFS { source })
     }
@@ -231,5 +277,26 @@ impl<S: Read + Seek> APFS<S> {
                 panic!("Unsupported");
             },
         })
+    }
+
+    /*
+    fn load_btree_node(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+        let object = self.load_object_oid(oid, r#type)?;
+        let body = match object {
+            APFSObject::BtreeNode(x) => x,
+            _ => { panic!("Invalid type"); },
+        };
+        Ok(Btree { body })
+    }
+    */
+
+    fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+        let object = self.load_object_oid(oid, r#type)?;
+        let body = match object {
+            APFSObject::BtreeNode(x) => x,
+            _ => { panic!("Invalid type"); },
+        };
+        let records = vec![0];
+        Ok(Btree { body, records })
     }
 }

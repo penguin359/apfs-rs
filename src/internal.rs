@@ -549,12 +549,12 @@ pub struct BtreeNodePhys {
         btn_free_space: Nloc,
         btn_key_free_list: Nloc,
         btn_val_free_list: Nloc,
-        btn_data: Vec<u64>,
+        btn_data: Vec<u8>,
 }
 
 impl BtreeNodePhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
-        Ok(Self {
+        let mut node = Self {
             //btn_o: ObjPhys::import(source)?,
             btn_flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?).unwrap(),
             btn_level: source.read_u16::<LittleEndian>()?,
@@ -564,7 +564,9 @@ impl BtreeNodePhys {
             btn_key_free_list: Nloc::import(source)?,
             btn_val_free_list: Nloc::import(source)?,
             btn_data: vec![],
-        })
+        };
+        source.read_to_end(&mut node.btn_data);
+        Ok(node)
     }
 }
 

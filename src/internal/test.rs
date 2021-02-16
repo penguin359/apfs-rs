@@ -266,6 +266,7 @@ fn test_load_object_map_btree() {
     assert_eq!(node.btn_key_free_list.len, 0x0010, "key free list len");
     assert_eq!(node.btn_val_free_list.off, 0x20, "val free list off");
     assert_eq!(node.btn_val_free_list.len, 0x0010, "val free list len");
+    let mut cursor = Cursor::new(&node.btn_data[..]);
     let mut entries = Vec::new();
     for _ in 0..node.btn_table_space.len/4 {
         entries.push(KVoff::import(&mut cursor).unwrap());
@@ -277,7 +278,7 @@ fn test_load_object_map_btree() {
     assert_eq!(entries[2].k, 0, "table entry 2 key off");
     assert_eq!(entries[2].v, 0x0000, "table entry 2 val off");
     let key = OmapKey::import(&mut cursor).unwrap();
-    let mut cursor = Cursor::new(&buffer[4096-40-entries[0].v as usize..4096-40]);
+    let mut cursor = Cursor::new(&node.btn_data[node.btn_data.len()-40-entries[0].v as usize..node.btn_data.len()-40]);
     let value = OmapVal::import(&mut cursor).unwrap();
     assert_eq!(key.ok_oid, Oid(0x402), "key oid");
     assert_eq!(key.ok_xid, Xid(4), "key xid");
