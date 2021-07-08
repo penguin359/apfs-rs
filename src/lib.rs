@@ -187,27 +187,32 @@ struct Btree {
 }
 
 
-struct NxSuperblockObject {
+#[derive(Debug)]
+pub struct NxSuperblockObject {
     header: ObjPhys,
     body: NxSuperblock,
 }
 
-struct CheckpointMapPhysObject {
+#[derive(Debug)]
+pub struct CheckpointMapPhysObject {
     header: ObjPhys,
     body: CheckpointMapPhys,
 }
 
-struct ObjectMapObject {
+#[derive(Debug)]
+pub struct ObjectMapObject {
     header: ObjPhys,
     body: OmapPhys,
 }
 
-struct BtreeNodeObject {
+#[derive(Debug)]
+pub struct BtreeNodeObject {
     header: ObjPhys,
     body: BtreeNodePhys,
 }
 
-enum APFSObject {
+#[derive(Debug)]
+pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
     ObjectMap(ObjectMapObject),
@@ -234,7 +239,7 @@ impl<S: Read + Seek> APFS<S> {
         Ok(block)
     }
 
-    fn load_object_addr(&mut self, addr: Paddr) -> io::Result<APFSObject> {
+    pub fn load_object_addr(&mut self, addr: Paddr) -> io::Result<APFSObject> {
         let block = self.load_block(addr)?;
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor)?;

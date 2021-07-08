@@ -20,6 +20,7 @@ impl Paddr {
     }
 }
 
+#[derive(Debug)]
 struct Prange {
     pr_start_paddr: Paddr,
     pr_block_count: u64,
@@ -168,6 +169,7 @@ const NX_EPH_INFO_COUNT: usize = 4;
 //#define NX_TX_MIN_CHECKPOINT_COUNT 4
 //#define NX_EPH_INFO_VERSION_1 1
 
+#[derive(Debug)]
 pub struct NxSuperblock {
         //nx_o: ObjPhys,
         pub nx_magic: u32,
@@ -331,6 +333,7 @@ const NX_SUPPORTED_FEATURES_MASK: u64 = NX_FEATURE_DEFRAG | NX_FEATURE_LCFD;
 //#define NX_MINIMUM_CONTAINER_SIZE 1048576
 
 
+#[derive(Debug)]
 struct CheckpointMapping {
     cpm_type:       u32,
     cpm_subtype:    u32,
@@ -362,6 +365,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct CheckpointMapPhys {
       //cpm_o:        ObjPhys,
       cpm_flags:    CpmFlags,
@@ -410,6 +414,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct OmapPhys {
         //om_o: ObjPhys,
         om_flags: OmFlags,
@@ -483,6 +488,7 @@ impl OmapVal {
 
 // B-Tree data structures
 
+#[derive(Debug)]
 struct Nloc {
     off: u16,
     len: u16,
@@ -540,6 +546,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct BtreeNodePhys {
         //btn_o: ObjPhys,
         btn_flags: BtnFlags,
