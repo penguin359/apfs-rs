@@ -38,9 +38,9 @@ mod tests {
         assert_eq!(block.len(), 4096);
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
-        assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
-        assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+        assert_eq!(header.cksum, fletcher64(&block[8..]), "cksum");
+        assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+        assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     }
 
     #[test]
@@ -60,7 +60,7 @@ mod tests {
             APFSObject::Superblock(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        assert_eq!(superblock.body.nx_block_size, 4096);
+        assert_eq!(superblock.body.block_size, 4096);
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
         //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
@@ -85,15 +85,15 @@ mod tests {
             APFSObject::Superblock(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let object_result = apfs.load_object_addr(superblock.body.nx_xp_desc_base);
+        let object_result = apfs.load_object_addr(superblock.body.xp_desc_base);
         assert!(object_result.is_ok(), "Bad checkpoint object load");
         let object = object_result.unwrap();
         let mapping = match object {
             APFSObject::CheckpointMapping(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        for idx in 0..superblock.body.nx_xp_desc_blocks {
-            let addr = superblock.body.nx_xp_desc_base.0 + idx as i64;
+        for idx in 0..superblock.body.xp_desc_blocks {
+            let addr = superblock.body.xp_desc_base.0 + idx as i64;
             let object_result = apfs.load_object_addr(Paddr(addr));
             assert!(object_result.is_ok(), "Bad checkpoint object load");
         }
@@ -194,10 +194,10 @@ impl<S: Read + Seek> APFS<S> {
         let block = self.load_block(addr)?;
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor)?;
-        if header.o_cksum != fletcher64(&block[8..]) {
+        if header.cksum != fletcher64(&block[8..]) {
             return Err(io::Error::new(io::ErrorKind::Other, "Bad object checksum"));
         }
-        let r#type = FromPrimitive::from_u32(header.o_type & OBJECT_TYPE_MASK);
+        let r#type = FromPrimitive::from_u32(header.objtype & OBJECT_TYPE_MASK);
         let object = match r#type {
             Some(ObjectType::NxSuperblock) =>
                 APFSObject::Superblock(NxSuperblockObject {
@@ -252,9 +252,9 @@ impl<S: Read + Seek> APFS<S> {
             APFSObject::BtreeNode(x) => x,
             _ => { panic!("Invalid type"); },
         };
-        let info = BtreeInfo::import(&mut Cursor::new(&body.body.btn_data[body.body.btn_data.len()-40..]))?;
-        body.body.btn_data.truncate(body.body.btn_data.len()-40);
-        let toc = &body.body.btn_data[body.body.btn_table_space.off as usize..(body.body.btn_table_space.off+body.body.btn_table_space.len) as usize];
+        let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
+        body.body.data.truncate(body.body.data.len()-40);
+        let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
         let cursor = Cursor::new(toc);
         let records = vec![0];
         Ok(Btree { body, info, records })

@@ -135,14 +135,14 @@ mod test {
             APFSObject::Superblock(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let object_result = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical);
+        let object_result = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical);
         assert!(object_result.is_ok(), "Bad object map load");
         let object = object_result.unwrap();
         let omap = match object {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_object_oid(omap.body.om_tree_oid, StorageType::Physical);
+        let btree_result = apfs.load_object_oid(omap.body.tree_oid, StorageType::Physical);
         //assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         let node = match btree {
@@ -159,12 +159,12 @@ mod test {
             APFSObject::Superblock(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let object = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical).unwrap();
+        let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
         let omap = match object {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_btree(omap.body.om_tree_oid, StorageType::Physical);
+        let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.records.len(), 1);

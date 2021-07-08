@@ -70,21 +70,21 @@ const MAX_CKSUM_SIZE: usize = 8;
 
 #[derive(Debug)]
 pub struct ObjPhys {
-    pub o_cksum: u64,
-    o_oid: Oid,
-    o_xid: Xid,
-    pub o_type: u32,
-    o_subtype: u32,
+    pub cksum: u64,
+    oid: Oid,
+    xid: Xid,
+    pub objtype: u32,
+    subtype: u32,
 }
 
 impl ObjPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            o_cksum: source.read_u64::<LittleEndian>()?,
-            o_oid: Oid::import(source)?,
-            o_xid: Xid::import(source)?,
-            o_type: source.read_u32::<LittleEndian>()?,
-            o_subtype: source.read_u32::<LittleEndian>()?,
+            cksum: source.read_u64::<LittleEndian>()?,
+            oid: Oid::import(source)?,
+            xid: Xid::import(source)?,
+            objtype: source.read_u32::<LittleEndian>()?,
+            subtype: source.read_u32::<LittleEndian>()?,
         })
     }
 }
@@ -162,9 +162,9 @@ pub enum StorageType {
 
 bitflags! {
     struct ObjTypeFlags: u32 {
-        const OBJ_NOHEADER        = 0x20000000;
-        const OBJ_ENCRYPTED       = 0x10000000;
-        const OBJ_NONPERSISTENT   = 0x08000000;
+        const NOHEADER        = 0x20000000;
+        const ENCRYPTED       = 0x10000000;
+        const NONPERSISTENT   = 0x08000000;
     }
 }
 
@@ -223,56 +223,56 @@ bitflags! {
 #[derive(Debug)]
 pub struct NxSuperblock {
         //nx_o: ObjPhys,
-        pub nx_magic: u32,
-        pub nx_block_size: u32,
-        pub nx_block_count: u64,
+        pub magic: u32,
+        pub block_size: u32,
+        pub block_count: u64,
 
-        nx_features: SuperblockFeatureFlags,
-        nx_readonly_compatible_features: SuperblockRocompatFlags,
-        nx_incompatible_features: SuperblockIncompatFlags,
+        features: SuperblockFeatureFlags,
+        readonly_compatible_features: SuperblockRocompatFlags,
+        incompatible_features: SuperblockIncompatFlags,
 
-        nx_uuid: Uuid,
+        uuid: Uuid,
 
-        nx_next_oid: Oid,
-        nx_next_xid: Xid,
+        next_oid: Oid,
+        next_xid: Xid,
 
-        pub nx_xp_desc_blocks: u32,
-        pub nx_xp_data_blocks: u32,
-        pub nx_xp_desc_base: Paddr,
-        pub nx_xp_data_base: Paddr,
-        pub nx_xp_desc_next: u32,
-        pub nx_xp_data_next: u32,
-        pub nx_xp_desc_index: u32,
-        pub nx_xp_desc_len: u32,
-        pub nx_xp_data_index: u32,
-        pub nx_xp_data_len: u32,
+        pub xp_desc_blocks: u32,
+        pub xp_data_blocks: u32,
+        pub xp_desc_base: Paddr,
+        pub xp_data_base: Paddr,
+        pub xp_desc_next: u32,
+        pub xp_data_next: u32,
+        pub xp_desc_index: u32,
+        pub xp_desc_len: u32,
+        pub xp_data_index: u32,
+        pub xp_data_len: u32,
 
-        pub nx_spaceman_oid: Oid,
-        pub nx_omap_oid: Oid,
-        pub nx_reaper_oid: Oid,
+        pub spaceman_oid: Oid,
+        pub omap_oid: Oid,
+        pub reaper_oid: Oid,
 
-        nx_test_type: u32,
+        test_type: u32,
 
-        nx_max_file_systems: u32,
-        nx_fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
-        nx_counters: [u64; CounterId::NumCounters as usize],
-        nx_blocked_out_prange: Prange,
-        nx_evict_mapping_tree_oid: Oid,
-        nx_flags: SuperblockFlags,
-        nx_efi_jumpstart: Paddr,
-        nx_fusion_uuid: Uuid,
-        nx_keylocker: Prange,
-        nx_ephemeral_info: [u64; NX_EPH_INFO_COUNT],
+        max_file_systems: u32,
+        fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
+        counters: [u64; CounterId::NumCounters as usize],
+        blocked_out_prange: Prange,
+        evict_mapping_tree_oid: Oid,
+        flags: SuperblockFlags,
+        efi_jumpstart: Paddr,
+        fusion_uuid: Uuid,
+        keylocker: Prange,
+        ephemeral_info: [u64; NX_EPH_INFO_COUNT],
 
-        nx_test_oid: Oid,
+        test_oid: Oid,
 
-        nx_fusion_mt_oid: Oid,
-        nx_fusion_wbc_oid: Oid,
-        nx_fusion_wbc: Prange,
+        fusion_mt_oid: Oid,
+        fusion_wbc_oid: Oid,
+        fusion_wbc: Prange,
 
-        nx_newest_mounted_version: u64,
+        newest_mounted_version: u64,
 
-        nx_mkb_locker: Prange,
+        mkb_locker: Prange,
 }
 
 impl NxSuperblock {
@@ -302,61 +302,60 @@ impl NxSuperblock {
 
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            //nx_o: ObjPhys::import(source)?,
-            nx_magic: source.read_u32::<LittleEndian>()?,
-            nx_block_size: source.read_u32::<LittleEndian>()?,
-            nx_block_count: source.read_u64::<LittleEndian>()?,
+            magic: source.read_u32::<LittleEndian>()?,
+            block_size: source.read_u32::<LittleEndian>()?,
+            block_count: source.read_u64::<LittleEndian>()?,
 
-            nx_features: SuperblockFeatureFlags::from_bits(source.read_u64::<LittleEndian>()?)
+            features: SuperblockFeatureFlags::from_bits(source.read_u64::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            nx_readonly_compatible_features: SuperblockRocompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+            readonly_compatible_features: SuperblockRocompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            nx_incompatible_features: SuperblockIncompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+            incompatible_features: SuperblockIncompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
 
-            nx_uuid: import_uuid(source)?,
+            uuid: import_uuid(source)?,
 
-            nx_next_oid: Oid::import(source)?,
-            nx_next_xid: Xid::import(source)?,
+            next_oid: Oid::import(source)?,
+            next_xid: Xid::import(source)?,
 
-            nx_xp_desc_blocks: source.read_u32::<LittleEndian>()?,
-            nx_xp_data_blocks: source.read_u32::<LittleEndian>()?,
-            nx_xp_desc_base: Paddr::import(source)?,
-            nx_xp_data_base: Paddr::import(source)?,
-            nx_xp_desc_next: source.read_u32::<LittleEndian>()?,
-            nx_xp_data_next: source.read_u32::<LittleEndian>()?,
-            nx_xp_desc_index: source.read_u32::<LittleEndian>()?,
-            nx_xp_desc_len: source.read_u32::<LittleEndian>()?,
-            nx_xp_data_index: source.read_u32::<LittleEndian>()?,
-            nx_xp_data_len: source.read_u32::<LittleEndian>()?,
+            xp_desc_blocks: source.read_u32::<LittleEndian>()?,
+            xp_data_blocks: source.read_u32::<LittleEndian>()?,
+            xp_desc_base: Paddr::import(source)?,
+            xp_data_base: Paddr::import(source)?,
+            xp_desc_next: source.read_u32::<LittleEndian>()?,
+            xp_data_next: source.read_u32::<LittleEndian>()?,
+            xp_desc_index: source.read_u32::<LittleEndian>()?,
+            xp_desc_len: source.read_u32::<LittleEndian>()?,
+            xp_data_index: source.read_u32::<LittleEndian>()?,
+            xp_data_len: source.read_u32::<LittleEndian>()?,
 
-            nx_spaceman_oid: Oid::import(source)?,
-            nx_omap_oid: Oid::import(source)?,
-            nx_reaper_oid: Oid::import(source)?,
+            spaceman_oid: Oid::import(source)?,
+            omap_oid: Oid::import(source)?,
+            reaper_oid: Oid::import(source)?,
 
-            nx_test_type: source.read_u32::<LittleEndian>()?,
+            test_type: source.read_u32::<LittleEndian>()?,
 
-            nx_max_file_systems: source.read_u32::<LittleEndian>()?,
-            nx_fs_oid: Self::import_fs_oids(source)?,
-            nx_counters: Self::import_counters(source)?,
-            nx_blocked_out_prange: Prange::import(source)?,
-            nx_evict_mapping_tree_oid: Oid::import(source)?,
-            nx_flags: SuperblockFlags::from_bits(source.read_u64::<LittleEndian>()?)
+            max_file_systems: source.read_u32::<LittleEndian>()?,
+            fs_oid: Self::import_fs_oids(source)?,
+            counters: Self::import_counters(source)?,
+            blocked_out_prange: Prange::import(source)?,
+            evict_mapping_tree_oid: Oid::import(source)?,
+            flags: SuperblockFlags::from_bits(source.read_u64::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            nx_efi_jumpstart: Paddr::import(source)?,
-            nx_fusion_uuid: import_uuid(source)?,
-            nx_keylocker: Prange::import(source)?,
-            nx_ephemeral_info: Self::import_ephemeral_info(source)?,
+            efi_jumpstart: Paddr::import(source)?,
+            fusion_uuid: import_uuid(source)?,
+            keylocker: Prange::import(source)?,
+            ephemeral_info: Self::import_ephemeral_info(source)?,
 
-            nx_test_oid: Oid::import(source)?,
+            test_oid: Oid::import(source)?,
 
-            nx_fusion_mt_oid: Oid::import(source)?,
-            nx_fusion_wbc_oid: Oid::import(source)?,
-            nx_fusion_wbc: Prange::import(source)?,
+            fusion_mt_oid: Oid::import(source)?,
+            fusion_wbc_oid: Oid::import(source)?,
+            fusion_wbc: Prange::import(source)?,
 
-            nx_newest_mounted_version: source.read_u64::<LittleEndian>()?,
+            newest_mounted_version: source.read_u64::<LittleEndian>()?,
 
-            nx_mkb_locker: Prange::import(source)?,
+            mkb_locker: Prange::import(source)?,
         })
     }
 }
@@ -370,32 +369,32 @@ const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
 
 #[derive(Debug)]
 struct CheckpointMapping {
-    cpm_type:       u32,
-    cpm_subtype:    u32,
-    cpm_size:       u32,
-    cpm_pad:        u32,
-    cpm_fs_oid:     Oid,
-    cpm_oid:        Oid,
-    cpm_paddr:      Oid,
+    objtype:    u32,
+    subtype:    u32,
+    size:       u32,
+    pad:        u32,
+    fs_oid:     Oid,
+    oid:        Oid,
+    paddr:      Oid,
 }
 
 impl CheckpointMapping {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            cpm_type: source.read_u32::<LittleEndian>()?,
-            cpm_subtype: source.read_u32::<LittleEndian>()?,
-            cpm_size: source.read_u32::<LittleEndian>()?,
-            cpm_pad: source.read_u32::<LittleEndian>()?,
-            cpm_fs_oid: Oid::import(source)?,
-            cpm_oid: Oid::import(source)?,
-            cpm_paddr: Oid::import(source)?,
+            objtype: source.read_u32::<LittleEndian>()?,
+            subtype: source.read_u32::<LittleEndian>()?,
+            size: source.read_u32::<LittleEndian>()?,
+            pad: source.read_u32::<LittleEndian>()?,
+            fs_oid: Oid::import(source)?,
+            oid: Oid::import(source)?,
+            paddr: Oid::import(source)?,
         })
     }
 }
 
 bitflags! {
     struct CpmFlags: u32 {
-        const CHECKPOINT_MAP_LAST = 0x00000001;
+        const LAST = 0x00000001;
     }
 }
 
@@ -410,7 +409,6 @@ pub struct CheckpointMapPhys {
 impl CheckpointMapPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut checkpoint_map = Self {
-            //cpm_o: ObjPhys::import(source)?,
             flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             count: source.read_u32::<LittleEndian>()?,
@@ -455,31 +453,30 @@ bitflags! {
 #[derive(Debug)]
 pub struct OmapPhys {
         //om_o: ObjPhys,
-        om_flags: OmFlags,
-        om_snap_count: u32,
-        om_tree_type: u32,
-        om_snapshot_tree_type: u32,
-        pub om_tree_oid: Oid,
-        om_snapshot_tree_oid: Oid,
-        om_most_recent_snap: Xid,
-        om_pending_revert_min: Xid,
-        om_pending_revert_max: Xid,
+        flags: OmFlags,
+        snap_count: u32,
+        tree_type: u32,
+        snapshot_tree_type: u32,
+        pub tree_oid: Oid,
+        snapshot_tree_oid: Oid,
+        most_recent_snap: Xid,
+        pending_revert_min: Xid,
+        pending_revert_max: Xid,
 }
 
 impl OmapPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            //om_o: ObjPhys::import(source)?,
-            om_flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?)
+            flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            om_snap_count: source.read_u32::<LittleEndian>()?,
-            om_tree_type: source.read_u32::<LittleEndian>()?,
-            om_snapshot_tree_type: source.read_u32::<LittleEndian>()?,
-            om_tree_oid: Oid::import(source)?,
-            om_snapshot_tree_oid: Oid::import(source)?,
-            om_most_recent_snap: Xid::import(source)?,
-            om_pending_revert_min: Xid::import(source)?,
-            om_pending_revert_max: Xid::import(source)?,
+            snap_count: source.read_u32::<LittleEndian>()?,
+            tree_type: source.read_u32::<LittleEndian>()?,
+            snapshot_tree_type: source.read_u32::<LittleEndian>()?,
+            tree_oid: Oid::import(source)?,
+            snapshot_tree_oid: Oid::import(source)?,
+            most_recent_snap: Xid::import(source)?,
+            pending_revert_min: Xid::import(source)?,
+            pending_revert_max: Xid::import(source)?,
         })
     }
 }
@@ -510,18 +507,18 @@ bitflags! {
 }
 
 pub struct OmapVal {
-        ov_flags: OvFlags,
-        ov_size: u32,
-        ov_paddr: Paddr,
+        flags: OvFlags,
+        size: u32,
+        paddr: Paddr,
 }
 
 impl OmapVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            ov_flags: OvFlags::from_bits(source.read_u32::<LittleEndian>()?)
+            flags: OvFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            ov_size: source.read_u32::<LittleEndian>()?,
-            ov_paddr: Paddr::import(source)?,
+            size: source.read_u32::<LittleEndian>()?,
+            paddr: Paddr::import(source)?,
         })
     }
 }
@@ -632,31 +629,30 @@ bitflags! {
 #[derive(Debug)]
 pub struct BtreeNodePhys {
         //btn_o: ObjPhys,
-        pub btn_flags: BtnFlags,
-        pub btn_level: u16,
-        pub btn_nkeys: u32,
-        pub btn_table_space: Nloc,
-        pub btn_free_space: Nloc,
-        pub btn_key_free_list: Nloc,
-        pub btn_val_free_list: Nloc,
-        pub btn_data: Vec<u8>,
+        pub flags: BtnFlags,
+        pub level: u16,
+        pub nkeys: u32,
+        pub table_space: Nloc,
+        pub free_space: Nloc,
+        pub key_free_list: Nloc,
+        pub val_free_list: Nloc,
+        pub data: Vec<u8>,
 }
 
 impl BtreeNodePhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = Self {
-            //btn_o: ObjPhys::import(source)?,
-            btn_flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?)
+            flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            btn_level: source.read_u16::<LittleEndian>()?,
-            btn_nkeys: source.read_u32::<LittleEndian>()?,
-            btn_table_space: Nloc::import(source)?,
-            btn_free_space: Nloc::import(source)?,
-            btn_key_free_list: Nloc::import(source)?,
-            btn_val_free_list: Nloc::import(source)?,
-            btn_data: vec![],
+            level: source.read_u16::<LittleEndian>()?,
+            nkeys: source.read_u32::<LittleEndian>()?,
+            table_space: Nloc::import(source)?,
+            free_space: Nloc::import(source)?,
+            key_free_list: Nloc::import(source)?,
+            val_free_list: Nloc::import(source)?,
+            data: vec![],
         };
-        source.read_to_end(&mut value.btn_data)?;
+        source.read_to_end(&mut value.data)?;
         Ok(value)
     }
 }
@@ -678,42 +674,41 @@ bitflags! {
 #[derive(Debug)]
 pub struct BtreeInfoFixed {
         //bt_o: ObjPhys,
-        bt_flags: BtFlags,
-        bt_node_size: u32,
-        bt_key_size: u32,
-        bt_val_size: u32,
+        flags: BtFlags,
+        node_size: u32,
+        key_size: u32,
+        val_size: u32,
 }
 
 impl BtreeInfoFixed {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            //bt_o: ObjPhys::import(source)?,
-            bt_flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?)
+            flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
-            bt_node_size: source.read_u32::<LittleEndian>()?,
-            bt_key_size: source.read_u32::<LittleEndian>()?,
-            bt_val_size: source.read_u32::<LittleEndian>()?,
+            node_size: source.read_u32::<LittleEndian>()?,
+            key_size: source.read_u32::<LittleEndian>()?,
+            val_size: source.read_u32::<LittleEndian>()?,
         })
     }
 }
 
 #[derive(Debug)]
 pub struct BtreeInfo {
-        bt_fixed: BtreeInfoFixed,
-        bt_longest_key: u32,
-        bt_longest_val: u32,
-        bt_key_count: u64,
-        bt_node_count: u64,
+        fixed: BtreeInfoFixed,
+        longest_key: u32,
+        longest_val: u32,
+        key_count: u64,
+        node_count: u64,
 }
 
 impl BtreeInfo {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            bt_fixed: BtreeInfoFixed::import(source)?,
-            bt_longest_key: source.read_u32::<LittleEndian>()?,
-            bt_longest_val: source.read_u32::<LittleEndian>()?,
-            bt_key_count: source.read_u64::<LittleEndian>()?,
-            bt_node_count: source.read_u64::<LittleEndian>()?,
+            fixed: BtreeInfoFixed::import(source)?,
+            longest_key: source.read_u32::<LittleEndian>()?,
+            longest_val: source.read_u32::<LittleEndian>()?,
+            key_count: source.read_u64::<LittleEndian>()?,
+            node_count: source.read_u64::<LittleEndian>()?,
         })
     }
 }
@@ -722,17 +717,17 @@ const BTREE_NODE_HASH_SIZE_MAX: usize = 64;
 
 #[derive(Debug)]
 struct BtnIndexNodeVal {
-    binv_child_oid: Oid,
-    binv_child_hash: [u8; BTREE_NODE_HASH_SIZE_MAX],
+    child_oid: Oid,
+    child_hash: [u8; BTREE_NODE_HASH_SIZE_MAX],
 }
 
 impl BtnIndexNodeVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = Self {
-            binv_child_oid: Oid::import(source)?,
-            binv_child_hash: [0; BTREE_NODE_HASH_SIZE_MAX],
+            child_oid: Oid::import(source)?,
+            child_hash: [0; BTREE_NODE_HASH_SIZE_MAX],
         };
-        source.read_exact(&mut value.binv_child_hash)?;
+        source.read_exact(&mut value.child_hash)?;
         Ok(value)
     }
 }
