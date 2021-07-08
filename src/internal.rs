@@ -438,10 +438,7 @@ impl EvictMappingVal {
 }
 
 
-// File system objects
-
-pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
-
+// Object Maps
 
 bitflags! {
     struct OmFlags: u32 {
@@ -473,7 +470,8 @@ impl OmapPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             //om_o: ObjPhys::import(source)?,
-            om_flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            om_flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             om_snap_count: source.read_u32::<LittleEndian>()?,
             om_tree_type: source.read_u32::<LittleEndian>()?,
             om_snapshot_tree_type: source.read_u32::<LittleEndian>()?,
@@ -503,11 +501,11 @@ impl OmapKey {
 
 bitflags! {
     struct OvFlags: u32 {
-        const VAL_DELETED               = 0x00000001;
-        const VAL_SAVED                 = 0x00000002;
-        const VAL_ENCRYPTED             = 0x00000004;
-        const VAL_NOHEADER              = 0x00000008;
-        const VAL_CRYPTO_GENERATION     = 0x00000010;
+        const DELETED               = 0x00000001;
+        const SAVED                 = 0x00000002;
+        const ENCRYPTED             = 0x00000004;
+        const NOHEADER              = 0x00000008;
+        const CRYPTO_GENERATION     = 0x00000010;
     }
 }
 
@@ -520,12 +518,47 @@ pub struct OmapVal {
 impl OmapVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            ov_flags: OvFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            ov_flags: OvFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             ov_size: source.read_u32::<LittleEndian>()?,
             ov_paddr: Paddr::import(source)?,
         })
     }
 }
+
+bitflags! {
+    struct OmsFlags: u32 {
+        const DELETED = 0x00000001;
+        const REVERTED = 0x00000002;
+    }
+}
+
+struct OmapSnapshot {
+    flags: OmsFlags,
+    pad: u32,
+    oid: Oid,
+}
+
+impl OmapSnapshot {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            flags: OmsFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            pad: source.read_u32::<LittleEndian>()?,
+            oid: Oid::import(source)?,
+        })
+    }
+}
+
+const OMAP_MAX_SNAP_COUNT: u32 = u32::MAX;
+
+const OMAP_REAP_PHASE_MAP_TREE: usize = 1;
+const OMAP_REAP_PHASE_SNAPSHOT_TREE: usize = 2;
+
+
+// Volumes
+
+pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
 
 
 // B-Tree data structures

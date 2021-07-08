@@ -13,3 +13,8 @@ clippy
 rustfmt
 
 Remove unneccessary prefixes
+
+OmapPhys has types?
+  Where else?
+
+Remove all unwrap
