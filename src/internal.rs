@@ -41,6 +41,9 @@ fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
     Ok(Uuid::from_bytes(data))
 }
 
+
+// Objects
+
 #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Oid(pub u64);
 
@@ -59,6 +62,8 @@ impl Xid {
     }
 }
 
+
+const MAX_CKSUM_SIZE: usize = 8;
 
 #[derive(Debug)]
 pub struct ObjPhys {
@@ -488,6 +493,11 @@ impl OmapVal {
 
 
 // B-Tree data structures
+const BTREE_TOC_ENTRY_INCREMENT: usize = 8;
+const BTREE_TOC_ENTRY_MAX_UNUSED: usize = (2 * BTREE_TOC_ENTRY_INCREMENT);
+
+const BTREE_NODE_SIZE_DEFAULT: usize = 4096;
+const BTREE_NODE_MIN_ENTRY_COUNT: usize = 4;
 
 #[derive(Debug)]
 pub struct Nloc {
@@ -506,6 +516,7 @@ impl Nloc {
     }
 }
 
+#[derive(Debug)]
 struct KVloc {
     k: Nloc,
     v: Nloc,
@@ -520,6 +531,7 @@ impl KVloc {
     }
 }
 
+#[derive(Debug)]
 struct KVoff {
     k: u16,
     v: u16,
@@ -562,9 +574,10 @@ pub struct BtreeNodePhys {
 
 impl BtreeNodePhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
-        let mut node = Self {
+        let mut value = Self {
             //btn_o: ObjPhys::import(source)?,
-            btn_flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?).unwrap(),
+            btn_flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             btn_level: source.read_u16::<LittleEndian>()?,
             btn_nkeys: source.read_u32::<LittleEndian>()?,
             btn_table_space: Nloc::import(source)?,
@@ -573,8 +586,8 @@ impl BtreeNodePhys {
             btn_val_free_list: Nloc::import(source)?,
             btn_data: vec![],
         };
-        source.read_to_end(&mut node.btn_data);
-        Ok(node)
+        source.read_to_end(&mut value.btn_data)?;
+        Ok(value)
     }
 }
 
@@ -592,6 +605,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct BtreeInfoFixed {
         //bt_o: ObjPhys,
         bt_flags: BtFlags,
@@ -604,7 +618,8 @@ impl BtreeInfoFixed {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             //bt_o: ObjPhys::import(source)?,
-            bt_flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
+            bt_flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             bt_node_size: source.read_u32::<LittleEndian>()?,
             bt_key_size: source.read_u32::<LittleEndian>()?,
             bt_val_size: source.read_u32::<LittleEndian>()?,
@@ -612,6 +627,7 @@ impl BtreeInfoFixed {
     }
 }
 
+#[derive(Debug)]
 pub struct BtreeInfo {
         bt_fixed: BtreeInfoFixed,
         bt_longest_key: u32,
@@ -629,5 +645,24 @@ impl BtreeInfo {
             bt_key_count: source.read_u64::<LittleEndian>()?,
             bt_node_count: source.read_u64::<LittleEndian>()?,
         })
+    }
+}
+
+const BTREE_NODE_HASH_SIZE_MAX: usize = 64;
+
+#[derive(Debug)]
+struct BtnIndexNodeVal {
+    binv_child_oid: Oid,
+    binv_child_hash: [u8; BTREE_NODE_HASH_SIZE_MAX],
+}
+
+impl BtnIndexNodeVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            binv_child_oid: Oid::import(source)?,
+            binv_child_hash: [0; BTREE_NODE_HASH_SIZE_MAX],
+        };
+        source.read_exact(&mut value.binv_child_hash)?;
+        Ok(value)
     }
 }
