@@ -41,7 +41,7 @@ fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
     Ok(Uuid::from_bytes(data))
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Oid(pub u64);
 
 impl Oid {
@@ -50,8 +50,8 @@ impl Oid {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct Xid(u64);
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct Xid(pub u64);
 
 impl Xid {
     fn import(source: &mut dyn Read) -> io::Result<Self> {

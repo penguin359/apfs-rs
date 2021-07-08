@@ -157,6 +157,7 @@ mod internal;
 mod fletcher;
 
 use internal::*;
+mod btree;
 use fletcher::fletcher64;
 
 pub use internal::Paddr;
