@@ -445,16 +445,17 @@ impl OmapPhys {
     }
 }
 
+#[derive(Debug)]
 pub struct OmapKey {
-        ok_oid: Oid,
-        ok_xid: Xid,
+        pub oid: Oid,
+        pub xid: Xid,
 }
 
 impl OmapKey {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            ok_oid: Oid::import(source)?,
-            ok_xid: Xid::import(source)?,
+            oid: Oid::import(source)?,
+            xid: Xid::import(source)?,
         })
     }
 }

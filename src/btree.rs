@@ -2,17 +2,18 @@ use std::cmp::Ordering;
 
 use crate::internal::Oid;
 use crate::internal::Xid;
+use crate::internal::OmapKey;
 
 trait Key : PartialOrd + Ord + PartialEq + Eq {
 }
 
-#[derive(Debug)]
-struct ObjectMapKey {
-    oid: Oid,
-    xid: Xid,
-}
+// #[derive(Debug)]
+// struct OmapKey {
+//     oid: Oid,
+//     xid: Xid,
+// }
 
-impl Ord for ObjectMapKey {
+impl Ord for OmapKey {
     fn cmp(&self, other: &Self) -> Ordering {
         let order = self.oid.cmp(&other.oid);
         match order {
@@ -22,22 +23,22 @@ impl Ord for ObjectMapKey {
     }
 }
 
-impl PartialOrd for ObjectMapKey {
+impl PartialOrd for OmapKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for ObjectMapKey {
+impl PartialEq for OmapKey {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl Eq for ObjectMapKey {
+impl Eq for OmapKey {
 }
 
-impl Key for ObjectMapKey {
+impl Key for OmapKey {
 }
 
 #[cfg(test)]
@@ -46,43 +47,43 @@ mod test {
 
     #[test]
     fn test_object_map_key_ordering() {
-        let key1 = ObjectMapKey {
+        let key1 = OmapKey {
             oid: Oid(23),
             xid: Xid(17),
         };
-        let key2 = ObjectMapKey {
+        let key2 = OmapKey {
             oid: Oid(23),
             xid: Xid(17),
         };
-        let key_oid_less = ObjectMapKey {
+        let key_oid_less = OmapKey {
             oid: Oid(21),
             xid: Xid(17),
         };
-        let key_oid_greater = ObjectMapKey {
+        let key_oid_greater = OmapKey {
             oid: Oid(25),
             xid: Xid(17),
         };
-        let key_xid_less = ObjectMapKey {
+        let key_xid_less = OmapKey {
             oid: Oid(23),
             xid: Xid(16),
         };
-        let key_xid_greater = ObjectMapKey {
+        let key_xid_greater = OmapKey {
             oid: Oid(23),
             xid: Xid(18),
         };
-        let key_oid_less_xid_less = ObjectMapKey {
+        let key_oid_less_xid_less = OmapKey {
             oid: Oid(21),
             xid: Xid(16),
         };
-        let key_oid_greater_xid_less = ObjectMapKey {
+        let key_oid_greater_xid_less = OmapKey {
             oid: Oid(25),
             xid: Xid(16),
         };
-        let key_oid_less_xid_greater = ObjectMapKey {
+        let key_oid_less_xid_greater = OmapKey {
             oid: Oid(21),
             xid: Xid(18),
         };
-        let key_oid_greater_xid_greater = ObjectMapKey {
+        let key_oid_greater_xid_greater = OmapKey {
             oid: Oid(25),
             xid: Xid(18),
         };
@@ -99,19 +100,19 @@ mod test {
 
     #[test]
     fn test_object_map_key_equal() {
-        let key1 = ObjectMapKey {
+        let key1 = OmapKey {
             oid: Oid(23),
             xid: Xid(17),
         };
-        let key2 = ObjectMapKey {
+        let key2 = OmapKey {
             oid: Oid(23),
             xid: Xid(17),
         };
-        let key3 = ObjectMapKey {
+        let key3 = OmapKey {
             oid: Oid(21),
             xid: Xid(17),
         };
-        let key4 = ObjectMapKey {
+        let key4 = OmapKey {
             oid: Oid(23),
             xid: Xid(18),
         };
@@ -121,5 +122,51 @@ mod test {
         assert_ne!(key2, key3);
         assert_ne!(key2, key4);
         assert_ne!(key3, key4);
+    }
+
+    use crate::{APFS, APFSObject, Paddr, StorageType};
+    use crate::tests::test_dir;
+
+    #[test]
+    fn test_load_object_map() {
+        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let object = apfs.load_object_addr(Paddr(0)).unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let object_result = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical);
+        assert!(object_result.is_ok(), "Bad object map load");
+        let object = object_result.unwrap();
+        let omap = match object {
+            APFSObject::ObjectMap(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let btree_result = apfs.load_object_oid(omap.body.om_tree_oid, StorageType::Physical);
+        //assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        let node = match btree {
+            APFSObject::BtreeNode(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+    }
+
+    #[test]
+    fn test_load_object_map_btree() {
+        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let object = apfs.load_object_addr(Paddr(0)).unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let object = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical).unwrap();
+        let omap = match object {
+            APFSObject::ObjectMap(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let btree_result = apfs.load_btree(omap.body.om_tree_oid, StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        assert_eq!(btree.records.len(), 1);
     }
 }

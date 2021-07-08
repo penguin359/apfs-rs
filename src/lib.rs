@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 #[macro_use]
 extern crate bitflags;
 
@@ -8,7 +11,7 @@ mod tests {
 
     use std::path::PathBuf;
 
-    fn test_dir() -> PathBuf {
+    pub fn test_dir() -> PathBuf {
         let root = ::std::env::var_os("CARGO_MANIFEST_DIR").map(|x| PathBuf::from(x))
             .unwrap_or_else(|| ::std::env::current_dir().unwrap());
         root.join("testdata")
@@ -100,49 +103,6 @@ mod tests {
         //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
         //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
     }
-
-    #[test]
-    fn test_load_object_map() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let object = apfs.load_object_addr(Paddr(0)).unwrap();
-        let superblock = match object {
-            APFSObject::Superblock(x) => x,
-            _ => { panic!("Wrong object type!"); },
-        };
-        let object_result = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical);
-        assert!(object_result.is_ok(), "Bad object map load");
-        let object = object_result.unwrap();
-        let omap = match object {
-            APFSObject::ObjectMap(x) => x,
-            _ => { panic!("Wrong object type!"); },
-        };
-        let btree_result = apfs.load_object_oid(omap.body.om_tree_oid, StorageType::Physical);
-        //assert!(btree_result.is_ok(), "Bad b-tree load");
-        let btree = btree_result.unwrap();
-        let node = match btree {
-            APFSObject::BtreeNode(x) => x,
-            _ => { panic!("Wrong object type!"); },
-        };
-    }
-
-    #[test]
-    fn test_load_object_map_btree() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-        let object = apfs.load_object_addr(Paddr(0)).unwrap();
-        let superblock = match object {
-            APFSObject::Superblock(x) => x,
-            _ => { panic!("Wrong object type!"); },
-        };
-        let object = apfs.load_object_oid(superblock.body.nx_omap_oid, StorageType::Physical).unwrap();
-        let omap = match object {
-            APFSObject::ObjectMap(x) => x,
-            _ => { panic!("Wrong object type!"); },
-        };
-        let btree_result = apfs.load_btree(omap.body.om_tree_oid, StorageType::Physical);
-        assert!(btree_result.is_ok(), "Bad b-tree load");
-        let btree = btree_result.unwrap();
-        assert_eq!(btree.records.len(), 1);
-    }
 }
 
 use std::fs::File;
@@ -162,18 +122,6 @@ use fletcher::fletcher64;
 
 pub use internal::Paddr;
 
-
-struct Key {
-
-}
-
-struct Value {
-}
-
-struct Record {
-    key: Key,
-    value: Value,
-}
 
 //pub enum Node<K, R> {
 //    //HeaderNode(HeaderNode),

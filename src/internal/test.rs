@@ -280,8 +280,8 @@ fn test_load_object_map_btree() {
     let key = OmapKey::import(&mut cursor).unwrap();
     let mut cursor = Cursor::new(&node.btn_data[node.btn_data.len()-40-entries[0].v as usize..node.btn_data.len()-40]);
     let value = OmapVal::import(&mut cursor).unwrap();
-    assert_eq!(key.ok_oid, Oid(0x402), "key oid");
-    assert_eq!(key.ok_xid, Xid(4), "key xid");
+    assert_eq!(key.oid, Oid(0x402), "key oid");
+    assert_eq!(key.xid, Xid(4), "key xid");
     assert_eq!(value.ov_flags, OvFlags::empty(), "value flags");
     assert_eq!(value.ov_size, 4096, "value size");
     assert_eq!(value.ov_paddr, Paddr(0x66), "value paddr");
