@@ -1,0 +1,15 @@
+How to handle type field:
+  Has StorageType, ObjectType, and Flags in it.
+  Invalid is not a valid value
+  Using FromPrimitive for casting?
+  repr(u32)?
+How to handle subtype
+  Can only contain an ObjectType or Invalid
+
+test or tests?
+
+trailing whitespace extension
+clippy
+rustfmt
+
+Remove unneccessary prefixes

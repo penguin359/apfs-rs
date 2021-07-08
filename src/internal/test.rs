@@ -30,9 +30,9 @@ fn test_load_superblock() {
     assert_eq!(superblock.nx_magic, NX_MAGIC, "magic");
     assert_eq!(superblock.nx_block_size, 4096, "block_size");
     assert_eq!(superblock.nx_block_count, 0x9f6, "block_count");
-    assert_eq!(superblock.nx_features, 0, "features");
-    assert_eq!(superblock.nx_readonly_compatible_features, 0, "ro_compat_features");
-    assert_eq!(superblock.nx_incompatible_features, 2, "imcompat_features");
+    assert_eq!(superblock.nx_features, SuperblockFeatureFlags::empty(), "features");
+    assert_eq!(superblock.nx_readonly_compatible_features, SuperblockRocompatFlags::empty(), "ro_compat_features");
+    assert_eq!(superblock.nx_incompatible_features, SuperblockIncompatFlags::VERSION2, "imcompat_features");
     assert_eq!(superblock.nx_uuid, Uuid::parse_str("0d8c95d045744d3585d31c9cdb8043bc").unwrap(), "uuid");
     assert_eq!(superblock.nx_next_oid, Oid(0x406), "next_oid");
     assert_eq!(superblock.nx_next_xid, Xid(5), "next_xid");
@@ -56,7 +56,7 @@ fn test_load_superblock() {
     assert_eq!(superblock.nx_blocked_out_prange.start_paddr, Paddr(0), "blocked_out_prange");
     assert_eq!(superblock.nx_blocked_out_prange.block_count, 0, "blocked_out_prange");
     assert_eq!(superblock.nx_evict_mapping_tree_oid, Oid(0), "evict_mapping_tree_oid");
-    assert_eq!(superblock.nx_flags, 0, "flags");
+    assert_eq!(superblock.nx_flags, SuperblockFlags::empty(), "flags");
     assert_eq!(superblock.nx_efi_jumpstart, Paddr(0), "efi_jumpstart");
     assert_eq!(superblock.nx_fusion_uuid, Uuid::nil(), "fusion_uuid");
     assert_eq!(superblock.nx_keylocker.start_paddr, Paddr(0), "keylocker");
@@ -137,44 +137,44 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
     //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
     assert_eq!(header.o_subtype, 0, "subtype");
-    assert_eq!(mapping.cpm_flags, CpmFlags::CHECKPOINT_MAP_LAST, "flags");
-    assert_eq!(mapping.cpm_count, 4, "count");
+    assert_eq!(mapping.flags, CpmFlags::CHECKPOINT_MAP_LAST, "flags");
+    assert_eq!(mapping.count, 4, "count");
 
-    assert_eq!(mapping.cpm_map[0].cpm_type & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
-    assert_eq!(mapping.cpm_map[0].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[0].cpm_subtype, 0, "subtype");
-    assert_eq!(mapping.cpm_map[0].cpm_size, 4096, "size");
-    assert_eq!(mapping.cpm_map[0].cpm_pad, 0, "pad");
-    assert_eq!(mapping.cpm_map[0].cpm_fs_oid, Oid(0), "fs oid");
-    assert_eq!(mapping.cpm_map[0].cpm_oid, Oid(0x400), "oid");
-    assert_eq!(mapping.cpm_map[0].cpm_paddr, Oid(0x13), "paddr");
+    assert_eq!(mapping.map[0].cpm_type & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
+    assert_eq!(mapping.map[0].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[0].cpm_subtype, 0, "subtype");
+    assert_eq!(mapping.map[0].cpm_size, 4096, "size");
+    assert_eq!(mapping.map[0].cpm_pad, 0, "pad");
+    assert_eq!(mapping.map[0].cpm_fs_oid, Oid(0), "fs oid");
+    assert_eq!(mapping.map[0].cpm_oid, Oid(0x400), "oid");
+    assert_eq!(mapping.map[0].cpm_paddr, Oid(0x13), "paddr");
 
-    assert_eq!(mapping.cpm_map[1].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
-    assert_eq!(mapping.cpm_map[1].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[1].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
-    assert_eq!(mapping.cpm_map[1].cpm_size, 4096, "size");
-    assert_eq!(mapping.cpm_map[1].cpm_pad, 0, "pad");
-    assert_eq!(mapping.cpm_map[1].cpm_fs_oid, Oid(0), "fs oid");
-    assert_eq!(mapping.cpm_map[1].cpm_oid, Oid(0x403), "oid");
-    assert_eq!(mapping.cpm_map[1].cpm_paddr, Oid(0x14), "paddr");
+    assert_eq!(mapping.map[1].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(mapping.map[1].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[1].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
+    assert_eq!(mapping.map[1].cpm_size, 4096, "size");
+    assert_eq!(mapping.map[1].cpm_pad, 0, "pad");
+    assert_eq!(mapping.map[1].cpm_fs_oid, Oid(0), "fs oid");
+    assert_eq!(mapping.map[1].cpm_oid, Oid(0x403), "oid");
+    assert_eq!(mapping.map[1].cpm_paddr, Oid(0x14), "paddr");
 
-    assert_eq!(mapping.cpm_map[2].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
-    assert_eq!(mapping.cpm_map[2].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[2].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
-    assert_eq!(mapping.cpm_map[2].cpm_size, 4096, "size");
-    assert_eq!(mapping.cpm_map[2].cpm_pad, 0, "pad");
-    assert_eq!(mapping.cpm_map[2].cpm_fs_oid, Oid(0), "fs oid");
-    assert_eq!(mapping.cpm_map[2].cpm_oid, Oid(0x405), "oid");
-    assert_eq!(mapping.cpm_map[2].cpm_paddr, Oid(0x15), "paddr");
+    assert_eq!(mapping.map[2].cpm_type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(mapping.map[2].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[2].cpm_subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
+    assert_eq!(mapping.map[2].cpm_size, 4096, "size");
+    assert_eq!(mapping.map[2].cpm_pad, 0, "pad");
+    assert_eq!(mapping.map[2].cpm_fs_oid, Oid(0), "fs oid");
+    assert_eq!(mapping.map[2].cpm_oid, Oid(0x405), "oid");
+    assert_eq!(mapping.map[2].cpm_paddr, Oid(0x15), "paddr");
 
-    assert_eq!(mapping.cpm_map[3].cpm_type & OBJECT_TYPE_MASK, ObjectType::NxReaper as u32, "type");
-    assert_eq!(mapping.cpm_map[3].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
-    assert_eq!(mapping.cpm_map[3].cpm_subtype, 0, "subtype");
-    assert_eq!(mapping.cpm_map[3].cpm_size, 4096, "size");
-    assert_eq!(mapping.cpm_map[3].cpm_pad, 0, "pad");
-    assert_eq!(mapping.cpm_map[3].cpm_fs_oid, Oid(0), "fs oid");
-    assert_eq!(mapping.cpm_map[3].cpm_oid, Oid(0x401), "oid");
-    assert_eq!(mapping.cpm_map[3].cpm_paddr, Oid(0x16), "paddr");
+    assert_eq!(mapping.map[3].cpm_type & OBJECT_TYPE_MASK, ObjectType::NxReaper as u32, "type");
+    assert_eq!(mapping.map[3].cpm_type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[3].cpm_subtype, 0, "subtype");
+    assert_eq!(mapping.map[3].cpm_size, 4096, "size");
+    assert_eq!(mapping.map[3].cpm_pad, 0, "pad");
+    assert_eq!(mapping.map[3].cpm_fs_oid, Oid(0), "fs oid");
+    assert_eq!(mapping.map[3].cpm_oid, Oid(0x401), "oid");
+    assert_eq!(mapping.map[3].cpm_paddr, Oid(0x16), "paddr");
 }
 
 #[test]

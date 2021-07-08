@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-use num_derive::FromPrimitive;
-
 use std::io::{self, prelude::*};
+
+use num_derive::FromPrimitive;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use bitflags;
@@ -148,9 +148,9 @@ pub enum ObjectType {
     Invalid               = 0x00000000,
     Test                  = 0x000000ff,
 
-    //ContainerKeybag      = u32_code!(b"keys"),
-    //VolumeKeybag         = u32_code!(b"recs"),
-    //MediaKeybag          = u32_code!(b"mkey"),
+    ContainerKeybag       = 0x7379656b,  // u32_code!(b"keys"),
+    VolumeKeybag          = 0x73636572,  // u32_code!(b"recs"),
+    MediaKeybag           = 0x79656b6d,  // u32_code!(b"mkey"),
 }
 
 
@@ -169,23 +169,56 @@ bitflags! {
 }
 
 
-//typedef enum {
-//      NX_CNTR_OBJ_CKSUM_SET = 0,
-//      NX_CNTR_OBJ_CKSUM_FAIL = 1,
-//
-//      NX_NUM_COUNTERS = 32
-//} nx_counter_id_t;
+// Container
 
+enum CounterId {
+      CntrObjCksumSet = 0,
+      CntrObjCksumFail = 1,
+
+      NumCounters = 32,
+}
 
 const NX_MAGIC: u32 = u32_code!(b"BSXN");
-const NX_NUM_COUNTERS: usize = 32;
 const NX_MAX_FILE_SYSTEMS: usize = 100;
 
 const NX_EPH_INFO_COUNT: usize = 4;
-//#define NX_EPH_MIN_BLOCK_COUNT 8
-//#define NX_MAX_FILE_SYSTEM_EPH_STRUCTS 4
-//#define NX_TX_MIN_CHECKPOINT_COUNT 4
-//#define NX_EPH_INFO_VERSION_1 1
+const NX_EPH_MIN_BLOCK_COUNT: usize = 8;
+const NX_MAX_FILE_SYSTEM_EPH_STRUCTS: usize = 4;
+const NX_TX_MIN_CHECKPOINT_COUNT: usize = 4;
+const NX_EPH_INFO_VERSION_1: usize = 1;
+
+const NX_NUM_COUNTERS: usize = 32;
+
+bitflags! {
+    struct SuperblockFlags: u64 {
+        const RESERVED_1 = 0x00000001;
+        const RESERVED_2 = 0x00000002;
+        const CRYPTO_SW = 0x00000004;
+    }
+}
+
+bitflags! {
+    struct SuperblockFeatureFlags: u64 {
+        const DEFRAG = 0x0000000000000001;
+        const LCFD = 0x0000000000000002;
+        const SUPPORTED_MASK = Self::DEFRAG.bits | Self::LCFD.bits;
+    }
+}
+
+bitflags! {
+    struct SuperblockRocompatFlags: u64 {
+        const SUPPORTED_MASK = 0;
+    }
+}
+
+bitflags! {
+    struct SuperblockIncompatFlags: u64 {
+        const VERSION1 = 0x0000000000000001;
+        const VERSION2 = 0x0000000000000002;
+        const FUSION = 0x0000000000000100;
+        const SUPPORTED_MASK = Self::VERSION2.bits | Self::FUSION.bits;
+    }
+}
 
 #[derive(Debug)]
 pub struct NxSuperblock {
@@ -194,9 +227,9 @@ pub struct NxSuperblock {
         pub nx_block_size: u32,
         pub nx_block_count: u64,
 
-        nx_features: u64,
-        nx_readonly_compatible_features: u64,
-        nx_incompatible_features: u64,
+        nx_features: SuperblockFeatureFlags,
+        nx_readonly_compatible_features: SuperblockRocompatFlags,
+        nx_incompatible_features: SuperblockIncompatFlags,
 
         nx_uuid: Uuid,
 
@@ -222,10 +255,10 @@ pub struct NxSuperblock {
 
         nx_max_file_systems: u32,
         nx_fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
-        nx_counters: [u64; NX_NUM_COUNTERS],
+        nx_counters: [u64; CounterId::NumCounters as usize],
         nx_blocked_out_prange: Prange,
         nx_evict_mapping_tree_oid: Oid,
-        nx_flags: u64,
+        nx_flags: SuperblockFlags,
         nx_efi_jumpstart: Paddr,
         nx_fusion_uuid: Uuid,
         nx_keylocker: Prange,
@@ -274,9 +307,12 @@ impl NxSuperblock {
             nx_block_size: source.read_u32::<LittleEndian>()?,
             nx_block_count: source.read_u64::<LittleEndian>()?,
 
-            nx_features: source.read_u64::<LittleEndian>()?,
-            nx_readonly_compatible_features: source.read_u64::<LittleEndian>()?,
-            nx_incompatible_features: source.read_u64::<LittleEndian>()?,
+            nx_features: SuperblockFeatureFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            nx_readonly_compatible_features: SuperblockRocompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            nx_incompatible_features: SuperblockIncompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
 
             nx_uuid: import_uuid(source)?,
 
@@ -305,7 +341,8 @@ impl NxSuperblock {
             nx_counters: Self::import_counters(source)?,
             nx_blocked_out_prange: Prange::import(source)?,
             nx_evict_mapping_tree_oid: Oid::import(source)?,
-            nx_flags: source.read_u64::<LittleEndian>()?,
+            nx_flags: SuperblockFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             nx_efi_jumpstart: Paddr::import(source)?,
             nx_fusion_uuid: import_uuid(source)?,
             nx_keylocker: Prange::import(source)?,
@@ -324,31 +361,11 @@ impl NxSuperblock {
     }
 }
 
+const NX_MINIMUM_BLOCK_SIZE: usize = 4096;
+const NX_DEFAULT_BLOCK_SIZE: usize = 4096;
+const NX_MAXIMUM_BLOCK_SIZE: usize = 65536;
 
-//#define NX_RESERVED_1 0x00000001LL
-//#define NX_RESERVED_2 0x00000002LL
-//#define NX_CRYPTO_SW 0x00000004LL
-
-
-const NX_FEATURE_DEFRAG: u64 = 0x0000000000000001;
-const NX_FEATURE_LCFD: u64 = 0x0000000000000002;
-const NX_SUPPORTED_FEATURES_MASK: u64 = NX_FEATURE_DEFRAG | NX_FEATURE_LCFD;
-
-
-//#define NX_SUPPORTED_ROCOMPAT_MASK (0x0ULL)
-//
-//
-//#define NX_INCOMPAT_VERSION1 0x0000000000000001ULL
-//#define NX_INCOMPAT_VERSION2 0x0000000000000002ULL
-//#define NX_INCOMPAT_FUSION 0x0000000000000100ULL
-//#define NX_SUPPORTED_INCOMPAT_MASK (NX_INCOMPAT_VERSION2 | NX_INCOMPAT_FUSION)
-//
-//
-//#define NX_MINIMUM_BLOCK_SIZE 4096
-//#define NX_DEFAULT_BLOCK_SIZE 4096
-//#define NX_MAXIMUM_BLOCK_SIZE 65536
-//
-//#define NX_MINIMUM_CONTAINER_SIZE 1048576
+const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
 
 
 #[derive(Debug)]
@@ -376,7 +393,6 @@ impl CheckpointMapping {
     }
 }
 
-
 bitflags! {
     struct CpmFlags: u32 {
         const CHECKPOINT_MAP_LAST = 0x00000001;
@@ -386,36 +402,43 @@ bitflags! {
 #[derive(Debug)]
 pub struct CheckpointMapPhys {
       //cpm_o:        ObjPhys,
-      cpm_flags:    CpmFlags,
-      cpm_count:    u32,
-      cpm_map:      Vec<CheckpointMapping>,
+      flags:    CpmFlags,
+      count:    u32,
+      map:      Vec<CheckpointMapping>,
 }
 
 impl CheckpointMapPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut checkpoint_map = Self {
             //cpm_o: ObjPhys::import(source)?,
-            cpm_flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?).unwrap(),
-            cpm_count: source.read_u32::<LittleEndian>()?,
-            cpm_map: vec![],
+            flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            count: source.read_u32::<LittleEndian>()?,
+            map: vec![],
         };
-        for _ in 0..checkpoint_map.cpm_count {
-            checkpoint_map.cpm_map.push(CheckpointMapping::import(source)?);
+        for _ in 0..checkpoint_map.count {
+            checkpoint_map.map.push(CheckpointMapping::import(source)?);
         }
         Ok(checkpoint_map)
     }
 }
 
+struct EvictMappingVal {
+    dst_paddr: Paddr,
+    len: u64,
+}
+
+impl EvictMappingVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            dst_paddr: Paddr::import(source)?,
+            len: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
 
 
-//struct evict_mapping_val {
-//      paddr_t dst_paddr;
-//      uint64_t len;
-//} __attribute__((packed));
-//typedef struct evict_mapping_val evict_mapping_val_t;
-
-
-
+// File system objects
 
 pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
 
@@ -506,6 +529,7 @@ impl OmapVal {
 
 
 // B-Tree data structures
+
 const BTREE_TOC_ENTRY_INCREMENT: usize = 8;
 const BTREE_TOC_ENTRY_MAX_UNUSED: usize = (2 * BTREE_TOC_ENTRY_INCREMENT);
 
