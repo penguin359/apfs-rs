@@ -105,6 +105,7 @@ mod tests {
     }
 }
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
@@ -132,6 +133,7 @@ pub use internal::Paddr;
 
 struct Btree {
     body: BtreeNodeObject,
+    info: BtreeInfo,
     records: Vec<u8>,
 }
 
@@ -246,11 +248,15 @@ impl<S: Read + Seek> APFS<S> {
 
     fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
         let object = self.load_object_oid(oid, r#type)?;
-        let body = match object {
+        let mut body = match object {
             APFSObject::BtreeNode(x) => x,
             _ => { panic!("Invalid type"); },
         };
+        let info = BtreeInfo::import(&mut Cursor::new(&body.body.btn_data[body.body.btn_data.len()-40..]))?;
+        body.body.btn_data.truncate(body.body.btn_data.len()-40);
+        let toc = &body.body.btn_data[body.body.btn_table_space.off as usize..(body.body.btn_table_space.off+body.body.btn_table_space.len) as usize];
+        let cursor = Cursor::new(toc);
         let records = vec![0];
-        Ok(Btree { body, records })
+        Ok(Btree { body, info, records })
     }
 }

@@ -490,9 +490,9 @@ impl OmapVal {
 // B-Tree data structures
 
 #[derive(Debug)]
-struct Nloc {
-    off: u16,
-    len: u16,
+pub struct Nloc {
+    pub off: u16,
+    pub len: u16,
 }
 
 const BTOFF_INVALID: u16 = 0xffff;
@@ -535,7 +535,7 @@ impl KVoff {
 }
 
 bitflags! {
-    struct BtnFlags: u16 {
+    pub struct BtnFlags: u16 {
         const ROOT               = 0x0001;
         const LEAF               = 0x0002;
 
@@ -550,14 +550,14 @@ bitflags! {
 #[derive(Debug)]
 pub struct BtreeNodePhys {
         //btn_o: ObjPhys,
-        btn_flags: BtnFlags,
-        btn_level: u16,
-        btn_nkeys: u32,
-        btn_table_space: Nloc,
-        btn_free_space: Nloc,
-        btn_key_free_list: Nloc,
-        btn_val_free_list: Nloc,
-        btn_data: Vec<u8>,
+        pub btn_flags: BtnFlags,
+        pub btn_level: u16,
+        pub btn_nkeys: u32,
+        pub btn_table_space: Nloc,
+        pub btn_free_space: Nloc,
+        pub btn_key_free_list: Nloc,
+        pub btn_val_free_list: Nloc,
+        pub btn_data: Vec<u8>,
 }
 
 impl BtreeNodePhys {
