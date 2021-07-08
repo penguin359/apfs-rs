@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "cargo",
-			"subcommand": "check",
+			"command": "test",
 			"problemMatcher": [
 				"$rustc"
 			],
@@ -11,16 +11,7 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"label": "Rust: cargo check - apfs"
-		},
-		{
-			"type": "cargo",
-			"subcommand": "test",
-			"problemMatcher": [
-				"$rustc"
-			],
-			"group": "test",
-			"label": "Rust: cargo test - apfs"
+			"label": "rust: cargo test"
 		}
 	]
 }
