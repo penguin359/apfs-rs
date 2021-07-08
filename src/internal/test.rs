@@ -53,23 +53,23 @@ fn test_load_superblock() {
     assert_eq!(superblock.nx_max_file_systems, 1, "max file systems");
     assert_eq!(superblock.nx_fs_oid[0], Oid(0x402), "fs oid");
     assert_eq!(superblock.nx_counters[0], 42, "counters");
-    assert_eq!(superblock.nx_blocked_out_prange.pr_start_paddr, Paddr(0), "blocked_out_prange");
-    assert_eq!(superblock.nx_blocked_out_prange.pr_block_count, 0, "blocked_out_prange");
+    assert_eq!(superblock.nx_blocked_out_prange.start_paddr, Paddr(0), "blocked_out_prange");
+    assert_eq!(superblock.nx_blocked_out_prange.block_count, 0, "blocked_out_prange");
     assert_eq!(superblock.nx_evict_mapping_tree_oid, Oid(0), "evict_mapping_tree_oid");
     assert_eq!(superblock.nx_flags, 0, "flags");
     assert_eq!(superblock.nx_efi_jumpstart, Paddr(0), "efi_jumpstart");
     assert_eq!(superblock.nx_fusion_uuid, Uuid::nil(), "fusion_uuid");
-    assert_eq!(superblock.nx_keylocker.pr_start_paddr, Paddr(0), "keylocker");
-    assert_eq!(superblock.nx_keylocker.pr_block_count, 0, "keylocker");
+    assert_eq!(superblock.nx_keylocker.start_paddr, Paddr(0), "keylocker");
+    assert_eq!(superblock.nx_keylocker.block_count, 0, "keylocker");
     assert_eq!(superblock.nx_ephemeral_info[0], 0x0100040001, "ephemeral_info");
     assert_eq!(superblock.nx_test_oid, Oid(0), "test_oid");
     assert_eq!(superblock.nx_fusion_mt_oid, Oid(0), "fusion_mt_oid");
     assert_eq!(superblock.nx_fusion_wbc_oid, Oid(0), "fusion_wbc_oid");
-    assert_eq!(superblock.nx_fusion_wbc.pr_start_paddr, Paddr(0), "fusion_wbc");
-    assert_eq!(superblock.nx_fusion_wbc.pr_block_count, 0, "fusion_wbc");
+    assert_eq!(superblock.nx_fusion_wbc.start_paddr, Paddr(0), "fusion_wbc");
+    assert_eq!(superblock.nx_fusion_wbc.block_count, 0, "fusion_wbc");
     assert_eq!(superblock.nx_newest_mounted_version, 0, "newest_mounted_version");
-    assert_eq!(superblock.nx_mkb_locker.pr_start_paddr, Paddr(0), "mkb_locker");
-    assert_eq!(superblock.nx_mkb_locker.pr_block_count, 0, "mkb_locker");
+    assert_eq!(superblock.nx_mkb_locker.start_paddr, Paddr(0), "mkb_locker");
+    assert_eq!(superblock.nx_mkb_locker.block_count, 0, "mkb_locker");
 }
 
 #[test]

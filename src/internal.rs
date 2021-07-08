@@ -11,6 +11,9 @@ use uuid::{Bytes, Uuid};
 #[cfg(test)]
 mod test;
 
+
+// General-Purpose Types
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Paddr(pub i64);
 
@@ -22,15 +25,15 @@ impl Paddr {
 
 #[derive(Debug)]
 struct Prange {
-    pr_start_paddr: Paddr,
-    pr_block_count: u64,
+    start_paddr: Paddr,
+    block_count: u64,
 }
 
 impl Prange {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            pr_start_paddr: Paddr::import(source)?,
-            pr_block_count: source.read_u64::<LittleEndian>()?,
+            start_paddr: Paddr::import(source)?,
+            block_count: source.read_u64::<LittleEndian>()?,
         })
     }
 }
@@ -136,6 +139,12 @@ pub enum ObjectType {
     GbitmapTree          = 0x0000001a,
     GbitmapBlock         = 0x0000001b,
 
+    ErRecoveryBlock = 0x0000001c,
+    SnapMetaExt = 0x0000001d,
+    IntegrityMeta = 0x0000001e,
+    FextTree = 0x0000001f,
+    Reserved20 = 0x00000020,
+
     Invalid               = 0x00000000,
     Test                  = 0x000000ff,
 
@@ -151,9 +160,13 @@ pub enum StorageType {
     Physical                      = 0x40000000,
 }
 
-const OBJ_NOHEADER                      : u32 = 0x20000000;
-const OBJ_ENCRYPTED                     : u32 = 0x10000000;
-const OBJ_NONPERSISTENT                 : u32 = 0x08000000;
+bitflags! {
+    struct ObjTypeFlags: u32 {
+        const OBJ_NOHEADER        = 0x20000000;
+        const OBJ_ENCRYPTED       = 0x10000000;
+        const OBJ_NONPERSISTENT   = 0x08000000;
+    }
+}
 
 
 //typedef enum {
