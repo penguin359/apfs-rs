@@ -183,7 +183,7 @@ pub struct BtreeNodeObject {
 #[derive(Debug)]
 pub struct ApfsSuperblockObject {
     header: ObjPhys,
-    body: ApfsSuperblock,
+    pub body: ApfsSuperblock,
 }
 
 #[derive(Debug)]

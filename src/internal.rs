@@ -739,10 +739,10 @@ pub struct ApfsSuperblock {
     extentref_tree_type: u32,
     snap_meta_tree_type: u32,
 
-    omap_oid: Oid,
-    root_tree_oid: Oid,
-    extentref_tree_oid: Oid,
-    snap_meta_tree_oid: Oid,
+    pub omap_oid: Oid,
+    pub root_tree_oid: Oid,
+    pub extentref_tree_oid: Oid,
+    pub snap_meta_tree_oid: Oid,
 
     revert_to_xid: Xid,
     revert_to_sblock_oid: Oid,
