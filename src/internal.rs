@@ -169,6 +169,46 @@ bitflags! {
 }
 
 
+// EFI Jumpstart
+
+struct NxEfiJumpstart {
+    //nej_o: ObjPhys,
+    magic: u32,
+    version: u32,
+    efi_file_len: u32,
+    num_extents: u32,
+    reserved: [u64; 16],
+    rec_extents: Vec<Prange>,
+}
+
+impl NxEfiJumpstart {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            magic: source.read_u32::<LittleEndian>()?,
+            version: source.read_u32::<LittleEndian>()?,
+            efi_file_len: source.read_u32::<LittleEndian>()?,
+            num_extents: source.read_u32::<LittleEndian>()?,
+            reserved: [0; 16],
+            rec_extents: vec![],
+        };
+        //source.read_exact(&mut value.reserved[..])?;
+        for idx in 0..value.reserved.len() {
+            value.reserved[idx] = source.read_u64::<LittleEndian>()?
+        }
+        for _ in 0..value.num_extents {
+            value.rec_extents.push(Prange::import(source)?);
+        }
+        Ok(value)
+    }
+}
+
+const NX_EFI_JUMPSTART_MAGIC: u32 = u32_code!(b"RDSJ");
+const NX_EFI_JUMPSTART_VERSION: usize = 1;
+
+//const APFS_GPT_PARTITION_UUID: Uuid = Uuid::parse_str("7C3457EF-0000-11AA-AA11-00306543ECAC").unwrap();
+const APFS_GPT_PARTITION_UUID: &str = "7C3457EF-0000-11AA-AA11-00306543ECAC";
+
+
 // Container
 
 enum CounterId {

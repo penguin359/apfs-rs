@@ -137,7 +137,7 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
     //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
     assert_eq!(header.subtype, 0, "subtype");
-    assert_eq!(mapping.flags, CpmFlags::CHECKPOINT_MAP_LAST, "flags");
+    assert_eq!(mapping.flags, CpmFlags::LAST, "flags");
     assert_eq!(mapping.count, 4, "count");
 
     assert_eq!(mapping.map[0].objtype & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
