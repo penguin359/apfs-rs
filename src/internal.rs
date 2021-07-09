@@ -537,7 +537,7 @@ impl OmapKey {
 }
 
 bitflags! {
-    struct OvFlags: u32 {
+    pub struct OvFlags: u32 {
         const DELETED               = 0x00000001;
         const SAVED                 = 0x00000002;
         const ENCRYPTED             = 0x00000004;
@@ -548,9 +548,9 @@ bitflags! {
 
 #[derive(Debug)]
 pub struct OmapVal {
-        flags: OvFlags,
-        size: u32,
-        paddr: Paddr,
+        pub flags: OvFlags,
+        pub size: u32,
+        pub paddr: Paddr,
 }
 
 impl OmapVal {

@@ -175,5 +175,10 @@ mod test {
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.records.len(), 1);
+        assert_eq!(btree.records[0].key.oid, Oid(1026));
+        assert_eq!(btree.records[0].key.xid, Xid(4));
+        assert!(btree.records[0].value.flags.is_empty());
+        assert_eq!(btree.records[0].value.size, 4096);
+        assert_eq!(btree.records[0].value.paddr, Paddr(102));
     }
 }

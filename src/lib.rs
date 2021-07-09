@@ -264,7 +264,7 @@ impl<S: Read + Seek> APFS<S> {
         let mut records = vec![];
         for _ in 0..body.body.nkeys {
             items.push(KVoff::import(&mut cursor)?);
-            let key_data = &body.body.data[(body.body.table_space.off+items.last().unwrap().k) as usize..(body.body.table_space.off+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
+            let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k) as usize..(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
             let mut c2 = Cursor::new(key_data);
             let key = OmapKey::import(&mut c2)?;
             let val_data = &body.body.data[(body.body.data.len() as u16 - items.last().unwrap().v) as usize..(body.body.data.len() as u16 -  items.last().unwrap().v + info.fixed.val_size as u16) as usize];
