@@ -135,7 +135,7 @@ pub use internal::Paddr;
 pub struct Btree {
     body: BtreeNodeObject,
     info: BtreeInfo,
-    records: Vec<Record<OmapKey, OmapVal>>,
+    pub records: Vec<Record<OmapKey, OmapVal>>,
 }
 
 

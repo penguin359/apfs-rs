@@ -9,7 +9,7 @@ fn main() {
         APFSObject::Superblock(x) => x,
         _ => { panic!("Wrong object type!"); },
     };
-    println!("Superblock: {:#?}", superblock);
+    println!("Container Superblock: {:#?}", superblock);
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,
@@ -19,4 +19,12 @@ fn main() {
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
     println!("Object Map B-Tree: {:#?}", btree);
+    for record in btree.records {
+        let object = apfs.load_object_addr(record.value.paddr).unwrap();
+        let volume = match object {
+            APFSObject::ApfsSuperblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        println!("Volume Superblock: {:#?}", volume);
+    }
 }
