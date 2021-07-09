@@ -546,6 +546,7 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
 pub struct OmapVal {
         flags: OvFlags,
         size: u32,
@@ -625,8 +626,8 @@ impl Nloc {
 
 #[derive(Debug)]
 struct KVloc {
-    k: Nloc,
-    v: Nloc,
+    pub k: Nloc,
+    pub v: Nloc,
 }
 
 impl KVloc {
@@ -639,9 +640,9 @@ impl KVloc {
 }
 
 #[derive(Debug)]
-struct KVoff {
-    k: u16,
-    v: u16,
+pub struct KVoff {
+    pub k: u16,
+    pub v: u16,
 }
 
 impl KVoff {
@@ -698,7 +699,7 @@ impl BtreeNodePhys {
 }
 
 bitflags! {
-    struct BtFlags: u32 {
+    pub struct BtFlags: u32 {
         const UINT64_KEYS         = 0x00000001;
         const SEQUENTIAL_INSERT   = 0x00000002;
         const ALLOW_GHOSTS        = 0x00000004;
@@ -714,10 +715,10 @@ bitflags! {
 #[derive(Debug)]
 pub struct BtreeInfoFixed {
         //bt_o: ObjPhys,
-        flags: BtFlags,
-        node_size: u32,
-        key_size: u32,
-        val_size: u32,
+        pub flags: BtFlags,
+        pub node_size: u32,
+        pub key_size: u32,
+        pub val_size: u32,
 }
 
 impl BtreeInfoFixed {
@@ -734,11 +735,11 @@ impl BtreeInfoFixed {
 
 #[derive(Debug)]
 pub struct BtreeInfo {
-        fixed: BtreeInfoFixed,
-        longest_key: u32,
-        longest_val: u32,
-        key_count: u64,
-        node_count: u64,
+        pub fixed: BtreeInfoFixed,
+        pub longest_key: u32,
+        pub longest_val: u32,
+        pub key_count: u64,
+        pub node_count: u64,
 }
 
 impl BtreeInfo {

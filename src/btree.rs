@@ -4,7 +4,7 @@ use crate::internal::Oid;
 use crate::internal::Xid;
 use crate::internal::OmapKey;
 
-trait Key : PartialOrd + Ord + PartialEq + Eq {
+pub trait Key : PartialOrd + Ord + PartialEq + Eq {
 }
 
 // #[derive(Debug)]
@@ -39,6 +39,13 @@ impl Eq for OmapKey {
 }
 
 impl Key for OmapKey {
+}
+
+#[derive(Debug)]
+pub struct Record<K, V> 
+    where K: Key {
+    pub key: K,
+    pub value: V,
 }
 
 #[cfg(test)]

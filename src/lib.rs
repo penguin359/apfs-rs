@@ -117,7 +117,7 @@ mod int_strings;
 mod internal;
 mod fletcher;
 
-use internal::*;
+pub use internal::*;
 mod btree;
 use fletcher::fletcher64;
 
@@ -131,17 +131,18 @@ pub use internal::Paddr;
 //    //LeafNode(LeafNode<R>),
 //}
 
-struct Btree {
+#[derive(Debug)]
+pub struct Btree {
     body: BtreeNodeObject,
     info: BtreeInfo,
-    records: Vec<u8>,
+    records: Vec<Record<OmapKey, OmapVal>>,
 }
 
 
 #[derive(Debug)]
 pub struct NxSuperblockObject {
     header: ObjPhys,
-    body: NxSuperblock,
+    pub body: NxSuperblock,
 }
 
 #[derive(Debug)]
@@ -153,7 +154,7 @@ pub struct CheckpointMapPhysObject {
 #[derive(Debug)]
 pub struct ObjectMapObject {
     header: ObjPhys,
-    body: OmapPhys,
+    pub body: OmapPhys,
 }
 
 #[derive(Debug)]
@@ -181,6 +182,8 @@ impl APFS<File> {
         Ok(APFS { source })
     }
 }
+
+use btree::Record;
 
 impl<S: Read + Seek> APFS<S> {
     fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
@@ -224,7 +227,7 @@ impl<S: Read + Seek> APFS<S> {
         Ok(object)
     }
 
-    fn load_object_oid(&mut self, oid: Oid, r#type: StorageType) -> io::Result<APFSObject> {
+    pub fn load_object_oid(&mut self, oid: Oid, r#type: StorageType) -> io::Result<APFSObject> {
         Ok(match r#type {
             StorageType::Physical => {
                 self.load_object_addr(Paddr(oid.0 as i64))?
@@ -246,7 +249,7 @@ impl<S: Read + Seek> APFS<S> {
     }
     */
 
-    fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
         let object = self.load_object_oid(oid, r#type)?;
         let mut body = match object {
             APFSObject::BtreeNode(x) => x,
@@ -255,8 +258,24 @@ impl<S: Read + Seek> APFS<S> {
         let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
         body.body.data.truncate(body.body.data.len()-40);
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
-        let cursor = Cursor::new(toc);
-        let records = vec![0];
+        let mut cursor = Cursor::new(toc);
+        let mut items = vec![];
+        assert!(body.body.flags.contains(BtnFlags::LEAF));
+        let mut records = vec![];
+        for _ in 0..body.body.nkeys {
+            items.push(KVoff::import(&mut cursor)?);
+            let key_data = &body.body.data[(body.body.table_space.off+items.last().unwrap().k) as usize..(body.body.table_space.off+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
+            let mut c2 = Cursor::new(key_data);
+            let key = OmapKey::import(&mut c2)?;
+            let val_data = &body.body.data[(body.body.data.len() as u16 - items.last().unwrap().v) as usize..(body.body.data.len() as u16 -  items.last().unwrap().v + info.fixed.val_size as u16) as usize];
+            let mut c2 = Cursor::new(val_data);
+            let val = OmapVal::import(&mut c2)?;
+            let record = Record {
+                key,
+                value: val,
+            };
+            records.push(record);
+        }
         Ok(Btree { body, info, records })
     }
 }
