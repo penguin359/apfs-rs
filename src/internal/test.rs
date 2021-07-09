@@ -15,13 +15,13 @@ fn test_dir() -> PathBuf {
 
 #[test]
 fn test_load_superblock() {
-    let mut buffer = [0u8; 4096];
+    let mut buffer = [0u8; NX_DEFAULT_BLOCK_SIZE];
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
     file.read_exact(&mut buffer).unwrap();
     let mut cursor = Cursor::new(&buffer[..]);
     let header = ObjPhys::import(&mut cursor).unwrap();
     let superblock = NxSuperblock::import(&mut cursor).unwrap();
-    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
     assert_eq!(header.oid, Oid(1), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
     assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
@@ -70,6 +70,70 @@ fn test_load_superblock() {
     assert_eq!(superblock.newest_mounted_version, 0, "newest_mounted_version");
     assert_eq!(superblock.mkb_locker.start_paddr, Paddr(0), "mkb_locker");
     assert_eq!(superblock.mkb_locker.block_count, 0, "mkb_locker");
+}
+
+#[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
+fn test_load_superblock_16k() {
+    let mut buffer = [0u8; NX_DEFAULT_BLOCK_SIZE];
+    let mut file = File::open(test_dir().join("apfs-16k-cs.img")).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).unwrap();
+    let superblock = NxSuperblock::import(&mut cursor).unwrap();
+    let block_size = superblock.block_size;
+    let mut buffer = vec![0u8; block_size as usize];
+    file.seek(SeekFrom::Start(0));
+    file.read_exact(&mut buffer).unwrap();
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
+    // assert_eq!(header.oid, Oid(1), "oid");
+    // assert_eq!(header.xid, Xid(4), "xid");
+    // assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+    // assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    // assert_eq!(header.subtype, 0, "subtype");
+    // assert_eq!(superblock.magic, NX_MAGIC, "magic");
+    // assert_eq!(superblock.block_size, 4096, "block_size");
+    // assert_eq!(superblock.block_count, 0x9f6, "block_count");
+    // assert_eq!(superblock.features, SuperblockFeatureFlags::empty(), "features");
+    // assert_eq!(superblock.readonly_compatible_features, SuperblockRocompatFlags::empty(), "ro_compat_features");
+    // assert_eq!(superblock.incompatible_features, SuperblockIncompatFlags::VERSION2, "imcompat_features");
+    // assert_eq!(superblock.uuid, Uuid::parse_str("0d8c95d045744d3585d31c9cdb8043bc").unwrap(), "uuid");
+    // assert_eq!(superblock.next_oid, Oid(0x406), "next_oid");
+    // assert_eq!(superblock.next_xid, Xid(5), "next_xid");
+    // assert_eq!(superblock.xp_desc_blocks, 8, "desc blocks");
+    // assert_eq!(superblock.xp_data_blocks, 52, "data blocks");
+    // assert_eq!(superblock.xp_desc_base, Paddr(1), "desc base");
+    // assert_eq!(superblock.xp_data_base, Paddr(9), "data base");
+    // assert_eq!(superblock.xp_desc_next, 0, "desc next");
+    // assert_eq!(superblock.xp_data_next, 14, "data next");
+    // assert_eq!(superblock.xp_desc_index, 6, "desc index");
+    // assert_eq!(superblock.xp_desc_len, 2, "desc len");
+    // assert_eq!(superblock.xp_data_index, 10, "data index");
+    // assert_eq!(superblock.xp_data_len, 4, "data len");
+    // assert_eq!(superblock.spaceman_oid, Oid(0x400), "spaceman oid");
+    // assert_eq!(superblock.omap_oid, Oid(0x067), "omap oid");
+    // assert_eq!(superblock.reaper_oid, Oid(0x401), "reaper oid");
+    // assert_eq!(superblock.test_type, 0, "test type");
+    // assert_eq!(superblock.max_file_systems, 1, "max file systems");
+    // assert_eq!(superblock.fs_oid[0], Oid(0x402), "fs oid");
+    // assert_eq!(superblock.counters[0], 42, "counters");
+    // assert_eq!(superblock.blocked_out_prange.start_paddr, Paddr(0), "blocked_out_prange");
+    // assert_eq!(superblock.blocked_out_prange.block_count, 0, "blocked_out_prange");
+    // assert_eq!(superblock.evict_mapping_tree_oid, Oid(0), "evict_mapping_tree_oid");
+    // assert_eq!(superblock.flags, SuperblockFlags::empty(), "flags");
+    // assert_eq!(superblock.efi_jumpstart, Paddr(0), "efi_jumpstart");
+    // assert_eq!(superblock.fusion_uuid, Uuid::nil(), "fusion_uuid");
+    // assert_eq!(superblock.keylocker.start_paddr, Paddr(0), "keylocker");
+    // assert_eq!(superblock.keylocker.block_count, 0, "keylocker");
+    // assert_eq!(superblock.ephemeral_info[0], 0x0100040001, "ephemeral_info");
+    // assert_eq!(superblock.test_oid, Oid(0), "test_oid");
+    // assert_eq!(superblock.fusion_mt_oid, Oid(0), "fusion_mt_oid");
+    // assert_eq!(superblock.fusion_wbc_oid, Oid(0), "fusion_wbc_oid");
+    // assert_eq!(superblock.fusion_wbc.start_paddr, Paddr(0), "fusion_wbc");
+    // assert_eq!(superblock.fusion_wbc.block_count, 0, "fusion_wbc");
+    // assert_eq!(superblock.newest_mounted_version, 0, "newest_mounted_version");
+    // assert_eq!(superblock.mkb_locker.start_paddr, Paddr(0), "mkb_locker");
+    // assert_eq!(superblock.mkb_locker.block_count, 0, "mkb_locker");
 }
 
 #[test]
@@ -131,7 +195,7 @@ fn test_load_checkpoint_mappings() {
     let mut cursor = Cursor::new(&buffer[..]);
     let header = ObjPhys::import(&mut cursor).unwrap();
     let mapping = CheckpointMapPhys::import(&mut cursor).unwrap();
-    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
     assert_eq!(header.oid, Oid(7), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
     assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
@@ -214,7 +278,7 @@ fn test_load_object_map() {
     let mut cursor = Cursor::new(&buffer[..]);
     let header = ObjPhys::import(&mut cursor).unwrap();
     let omap = OmapPhys::import(&mut cursor).unwrap();
-    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
     assert_eq!(header.oid, Oid(0x067), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
     assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::Omap as u32, "type");
@@ -249,7 +313,7 @@ fn test_load_object_map_btree() {
     let mut cursor = Cursor::new(&buffer[..]);
     let header = ObjPhys::import(&mut cursor).unwrap();
     let node = BtreeNodePhys::import(&mut cursor).unwrap();
-    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
     assert_eq!(header.oid, Oid(0x068), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
     assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");

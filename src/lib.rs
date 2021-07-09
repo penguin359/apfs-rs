@@ -38,10 +38,27 @@ mod tests {
         assert_eq!(block.len(), 4096);
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
-        assert_eq!(header.cksum, fletcher64(&block[8..]), "cksum");
+        assert_eq!(header.cksum, fletcher64(&block[8..]), "bad checksum");
         assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
         assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     }
+
+    
+    #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
+    fn test_load_block0_16k() {
+        let mut apfs = APFS::open(&test_dir().join("apfs-16k-cs.img")).unwrap();
+        let mut block_result = apfs.load_block(Paddr(0));
+        assert!(block_result.is_ok());
+        let block = block_result.unwrap();
+        assert_eq!(block.len(), 16384, "bad block size");
+        let mut cursor = Cursor::new(&block[..]);
+        let header = ObjPhys::import(&mut cursor).unwrap();
+        assert_eq!(header.cksum, fletcher64(&block[8..]), "bad checksum");
+        assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+        assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    }
+    
 
     #[test]
     fn test_load_nonexistent_block() {
@@ -63,16 +80,16 @@ mod tests {
         assert_eq!(superblock.body.block_size, 4096);
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
-        //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
+        //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "bad checksum");
         //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
         //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
     }
 
     #[test]
     fn test_load_block0_bad_checksum() {
-        let block = [0u8; 4096];
+        let block = [0u8; NX_DEFAULT_BLOCK_SIZE];
         let mut source = Cursor::new(&block[..]);
-        let mut apfs = APFS { source };
+        let mut apfs = APFS { source, block_size: NX_DEFAULT_BLOCK_SIZE };
         let object_result = apfs.load_object_addr(Paddr(0));
         assert!(object_result.is_err(), "failed to detect bad checksum");
     }
@@ -99,7 +116,7 @@ mod tests {
         }
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
-        //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "cksum");
+        //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "bad checksum");
         //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
         //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
     }
@@ -181,12 +198,19 @@ pub enum APFSObject {
 pub struct APFS<S: Read + Seek> {
     //file: File,
     source: S,
+    block_size: usize,
 }
 
 impl APFS<File> {
     pub fn open<P: AsRef<Path>>(filename: P) -> io::Result<Self> {
-        let source = File::open(filename)?;
-        Ok(APFS { source })
+        let mut source = File::open(filename)?;
+        //let block0 = APFS { source, block_size: NX_DEFAULT_BLOCK_SIZE }.load_block(Paddr(0)).unwrap();
+        let mut block0 = [0; NX_DEFAULT_BLOCK_SIZE];
+        source.read_exact(&mut block0[..])?;
+        let mut cursor = Cursor::new(&block0[..]);
+        let header = ObjPhys::import(&mut cursor).unwrap();
+        let superblock = NxSuperblock::import(&mut cursor).unwrap();
+        Ok(APFS { source, block_size: superblock.block_size as usize })
     }
 }
 
@@ -194,8 +218,8 @@ use btree::Record;
 
 impl<S: Read + Seek> APFS<S> {
     fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
-        let mut block = vec![0; 4096];
-        self.source.seek(SeekFrom::Start((addr.0 as u64) * 4096))?;
+        let mut block = vec![0; self.block_size];
+        self.source.seek(SeekFrom::Start((addr.0 as u64) * self.block_size as u64))?;
         self.source.read_exact(&mut block)?;
         Ok(block)
     }

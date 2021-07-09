@@ -397,7 +397,7 @@ impl NxSuperblock {
 }
 
 const NX_MINIMUM_BLOCK_SIZE: usize = 4096;
-const NX_DEFAULT_BLOCK_SIZE: usize = 4096;
+pub const NX_DEFAULT_BLOCK_SIZE: usize = 4096;
 const NX_MAXIMUM_BLOCK_SIZE: usize = 65536;
 
 const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
