@@ -24,8 +24,8 @@ fn test_load_superblock() {
     assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.oid, Oid(1), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
-    assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-    assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(header.subtype, 0, "subtype");
     assert_eq!(superblock.magic, NX_MAGIC, "magic");
     assert_eq!(superblock.block_size, 4096, "block_size");
@@ -88,10 +88,10 @@ fn test_load_checkpoints() {
         let mut cursor = Cursor::new(&buffer[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.cksum, fletcher64(&buffer[8..]));
-        if header.objtype & OBJECT_TYPE_MASK == ObjectType::CheckpointMap as u32 {
+        if header.r#type & OBJECT_TYPE_MASK == ObjectType::CheckpointMap as u32 {
             println!("Checkpoint map");
             //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL);
-        } else if header.objtype & OBJECT_TYPE_MASK == ObjectType::NxSuperblock as u32 {
+        } else if header.r#type & OBJECT_TYPE_MASK == ObjectType::NxSuperblock as u32 {
             println!("Superblock");
             let mut cursor = Cursor::new(&buffer[..]);
             let header = ObjPhys::import(&mut cursor).unwrap();
@@ -108,7 +108,7 @@ fn test_load_checkpoints() {
             println!("  Data next: {:?}", superblock.xp_data_next);
             println!("  Data index: {:?}", superblock.xp_data_index);
             println!("  Data len: {}", superblock.xp_data_len);
-            assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32);
+            assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32);
         } else {
             panic!("Unrecognized block type");
         }
@@ -134,14 +134,14 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.oid, Oid(7), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
-    assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::CheckpointMap as u32, "type");
     //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_PHYSICAL, "type");
     assert_eq!(header.subtype, 0, "subtype");
     assert_eq!(mapping.flags, CpmFlags::LAST, "flags");
     assert_eq!(mapping.count, 4, "count");
 
-    assert_eq!(mapping.map[0].objtype & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
-    assert_eq!(mapping.map[0].objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[0].r#type & OBJECT_TYPE_MASK, ObjectType::Spaceman as u32, "type");
+    assert_eq!(mapping.map[0].r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.map[0].subtype, 0, "subtype");
     assert_eq!(mapping.map[0].size, 4096, "size");
     assert_eq!(mapping.map[0].pad, 0, "pad");
@@ -149,8 +149,8 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(mapping.map[0].oid, Oid(0x400), "oid");
     assert_eq!(mapping.map[0].paddr, Oid(0x13), "paddr");
 
-    assert_eq!(mapping.map[1].objtype & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
-    assert_eq!(mapping.map[1].objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[1].r#type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(mapping.map[1].r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.map[1].subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
     assert_eq!(mapping.map[1].size, 4096, "size");
     assert_eq!(mapping.map[1].pad, 0, "pad");
@@ -158,8 +158,8 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(mapping.map[1].oid, Oid(0x403), "oid");
     assert_eq!(mapping.map[1].paddr, Oid(0x14), "paddr");
 
-    assert_eq!(mapping.map[2].objtype & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
-    assert_eq!(mapping.map[2].objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[2].r#type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(mapping.map[2].r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.map[2].subtype, ObjectType::SpacemanFreeQueue as u32, "subtype");
     assert_eq!(mapping.map[2].size, 4096, "size");
     assert_eq!(mapping.map[2].pad, 0, "pad");
@@ -167,8 +167,8 @@ fn test_load_checkpoint_mappings() {
     assert_eq!(mapping.map[2].oid, Oid(0x405), "oid");
     assert_eq!(mapping.map[2].paddr, Oid(0x15), "paddr");
 
-    assert_eq!(mapping.map[3].objtype & OBJECT_TYPE_MASK, ObjectType::NxReaper as u32, "type");
-    assert_eq!(mapping.map[3].objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+    assert_eq!(mapping.map[3].r#type & OBJECT_TYPE_MASK, ObjectType::NxReaper as u32, "type");
+    assert_eq!(mapping.map[3].r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     assert_eq!(mapping.map[3].subtype, 0, "subtype");
     assert_eq!(mapping.map[3].size, 4096, "size");
     assert_eq!(mapping.map[3].pad, 0, "pad");
@@ -190,13 +190,13 @@ fn test_load_checkpoint_data() {
         file.read_exact(&mut buffer).unwrap();
         let mut cursor = Cursor::new(&buffer[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
-        if header.objtype == 0 {
+        if header.r#type == 0 {
             continue;
         }
         assert_eq!(header.cksum, fletcher64(&buffer[8..]));
         //if header.o_type & OBJECT_TYPE_MASK == ObjectType::CheckpointMap as u32 {
         //println!("  Data block type: {:?}", header);
-        println!("  Data block type: {:?} - {:?}", header.objtype & OBJECT_TYPE_MASK, header.subtype);
+        println!("  Data block type: {:?} - {:?}", header.r#type & OBJECT_TYPE_MASK, header.subtype);
     }
     //panic!("Dump");
 }
@@ -217,8 +217,8 @@ fn test_load_object_map() {
     assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.oid, Oid(0x067), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
-    assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::Omap as u32, "type");
-    assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::Omap as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
     assert_eq!(header.subtype, 0, "subtype");
     assert_eq!(omap.flags, OmFlags::MANUALLY_MANAGED, "flags");
     assert_eq!(omap.snap_count, 0, "snap_count");
@@ -252,8 +252,8 @@ fn test_load_object_map_btree() {
     assert_eq!(header.cksum, fletcher64(&buffer[8..]), "cksum");
     assert_eq!(header.oid, Oid(0x068), "oid");
     assert_eq!(header.xid, Xid(4), "xid");
-    assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
-    assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::Btree as u32, "type");
+    assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Physical as u32, "type");
     assert_eq!(header.subtype, ObjectType::Omap as u32, "subtype");
     assert_eq!(node.flags, BtnFlags::ROOT | BtnFlags::LEAF | BtnFlags::FIXED_KV_SIZE, "flags");
     assert_eq!(node.level, 0, "level");

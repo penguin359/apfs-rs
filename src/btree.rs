@@ -181,4 +181,37 @@ mod test {
         assert_eq!(btree.records[0].value.size, 4096);
         assert_eq!(btree.records[0].value.paddr, Paddr(102));
     }
+
+    #[test]
+    fn test_load_volume_superblock() {
+        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let object = apfs.load_object_addr(Paddr(0)).unwrap();
+        let superblock = match object {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
+        let omap = match object {
+            APFSObject::ObjectMap(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        assert_ne!(superblock.body.fs_oid[0], Oid(0));
+        let mut found = -1;
+        for idx in 0..btree.records.len() {
+            if btree.records[idx].key.oid == superblock.body.fs_oid[0] {
+                found = idx as isize;
+                break;
+            }
+        }
+        assert!(found >= 0);
+        let object = apfs.load_object_addr(btree.records[found as usize].value.paddr).unwrap();
+        let volume = match object {
+            APFSObject::ApfsSuperblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        assert_eq!(volume.body.volname[0..7], *b"MYAPFS\0");
+    }
 }

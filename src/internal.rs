@@ -47,7 +47,7 @@ fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
 
 // Objects
 
-#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Oid(pub u64);
 
 impl Oid {
@@ -56,7 +56,7 @@ impl Oid {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Xid(pub u64);
 
 impl Xid {
@@ -73,7 +73,7 @@ pub struct ObjPhys {
     pub cksum: u64,
     oid: Oid,
     xid: Xid,
-    pub objtype: u32,
+    pub r#type: u32,
     subtype: u32,
 }
 
@@ -83,7 +83,7 @@ impl ObjPhys {
             cksum: source.read_u64::<LittleEndian>()?,
             oid: Oid::import(source)?,
             xid: Xid::import(source)?,
-            objtype: source.read_u32::<LittleEndian>()?,
+            r#type: source.read_u32::<LittleEndian>()?,
             subtype: source.read_u32::<LittleEndian>()?,
         })
     }
@@ -101,7 +101,6 @@ pub const OBJECT_TYPE_FLAGS_MASK            : u32 = 0xffff0000;
 
 const OBJ_STORAGETYPE_MASK              : u32 = 0xc0000000;
 const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
-
 
 #[repr(u32)]
 #[derive(Debug, FromPrimitive)]
@@ -191,7 +190,6 @@ impl NxEfiJumpstart {
             reserved: [0; 16],
             rec_extents: vec![],
         };
-        //source.read_exact(&mut value.reserved[..])?;
         for idx in 0..value.reserved.len() {
             value.reserved[idx] = source.read_u64::<LittleEndian>()?
         }
@@ -226,8 +224,6 @@ const NX_EPH_MIN_BLOCK_COUNT: usize = 8;
 const NX_MAX_FILE_SYSTEM_EPH_STRUCTS: usize = 4;
 const NX_TX_MIN_CHECKPOINT_COUNT: usize = 4;
 const NX_EPH_INFO_VERSION_1: usize = 1;
-
-const NX_NUM_COUNTERS: usize = 32;
 
 bitflags! {
     struct SuperblockFlags: u64 {
@@ -294,7 +290,7 @@ pub struct NxSuperblock {
         test_type: u32,
 
         max_file_systems: u32,
-        fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
+        pub fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
         counters: [u64; CounterId::NumCounters as usize],
         blocked_out_prange: Prange,
         evict_mapping_tree_oid: Oid,
@@ -316,28 +312,28 @@ pub struct NxSuperblock {
 }
 
 impl NxSuperblock {
-    fn import_fs_oids(source: &mut dyn Read) -> io::Result<[Oid; NX_MAX_FILE_SYSTEMS]> {
-        let mut oids = [Oid(0); NX_MAX_FILE_SYSTEMS];
-        for entry in oids.iter_mut() {
+    fn import_fs_oid(source: &mut dyn Read) -> io::Result<[Oid; NX_MAX_FILE_SYSTEMS]> {
+        let mut values = [Oid(0); NX_MAX_FILE_SYSTEMS];
+        for entry in values.iter_mut() {
             *entry = Oid::import(source)?;
         }
-        return Ok(oids);
+        Ok(values)
     }
 
-    fn import_counters(source: &mut dyn Read) -> io::Result<[u64; NX_NUM_COUNTERS]> {
-        let mut counters = [0; NX_NUM_COUNTERS];
-        for entry in counters.iter_mut() {
+    fn import_counters(source: &mut dyn Read) -> io::Result<[u64; CounterId::NumCounters as usize]> {
+        let mut values = [0; CounterId::NumCounters as usize];
+        for entry in values.iter_mut() {
             *entry = source.read_u64::<LittleEndian>()?;
         }
-        return Ok(counters);
+        Ok(values)
     }
 
     fn import_ephemeral_info(source: &mut dyn Read) -> io::Result<[u64; NX_EPH_INFO_COUNT]> {
-        let mut info = [0; NX_EPH_INFO_COUNT];
-        for entry in info.iter_mut() {
+        let mut values = [0; NX_EPH_INFO_COUNT];
+        for entry in values.iter_mut() {
             *entry = source.read_u64::<LittleEndian>()?;
         }
-        return Ok(info);
+        Ok(values)
     }
 
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
@@ -376,7 +372,7 @@ impl NxSuperblock {
             test_type: source.read_u32::<LittleEndian>()?,
 
             max_file_systems: source.read_u32::<LittleEndian>()?,
-            fs_oid: Self::import_fs_oids(source)?,
+            fs_oid: Self::import_fs_oid(source)?,
             counters: Self::import_counters(source)?,
             blocked_out_prange: Prange::import(source)?,
             evict_mapping_tree_oid: Oid::import(source)?,
@@ -409,7 +405,7 @@ const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
 
 #[derive(Debug)]
 struct CheckpointMapping {
-    objtype:    u32,
+    r#type:    u32,
     subtype:    u32,
     size:       u32,
     pad:        u32,
@@ -421,7 +417,7 @@ struct CheckpointMapping {
 impl CheckpointMapping {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            objtype: source.read_u32::<LittleEndian>()?,
+            r#type: source.read_u32::<LittleEndian>()?,
             subtype: source.read_u32::<LittleEndian>()?,
             size: source.read_u32::<LittleEndian>()?,
             pad: source.read_u32::<LittleEndian>()?,
@@ -448,16 +444,16 @@ pub struct CheckpointMapPhys {
 
 impl CheckpointMapPhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
-        let mut checkpoint_map = Self {
+        let mut value = Self {
             flags: CpmFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             count: source.read_u32::<LittleEndian>()?,
             map: vec![],
         };
-        for _ in 0..checkpoint_map.count {
-            checkpoint_map.map.push(CheckpointMapping::import(source)?);
+        for _ in 0..value.count {
+            value.map.push(CheckpointMapping::import(source)?);
         }
-        Ok(checkpoint_map)
+        Ok(value)
     }
 }
 
@@ -596,7 +592,196 @@ const OMAP_REAP_PHASE_SNAPSHOT_TREE: usize = 2;
 
 // Volumes
 
-pub const APFS_MAGIC: u32   = u32_code!(b"BSXN");
+const APFS_MODIFIED_NAMELEN: usize = 32;
+
+#[derive(Debug, Default, Copy, Clone)]
+struct ApfsModifiedBy {
+    id: [u8; APFS_MODIFIED_NAMELEN],
+    timestamp: u64,
+    last_xid: Xid,
+}
+
+impl ApfsModifiedBy {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut id = [0; APFS_MODIFIED_NAMELEN];
+        source.read_exact(&mut id[..])?;
+        Ok(Self {
+            id,
+            timestamp: source.read_u64::<LittleEndian>()?,
+            last_xid: Xid::import(source)?,
+        })
+    }
+}
+
+
+pub const APFS_MAGIC: u32   = u32_code!(b"BSPA");
+const APFS_MAX_HIST: usize = 8;
+const APFS_VOLNAME_LEN: usize = 256;
+
+#[derive(Debug)]
+pub struct ApfsSuperblock {
+    //apfs_o: ObjPhys,
+
+    magic: u32,
+    fs_index: u32,
+
+    features: u64,
+    readonly_compatible_features: u64,
+    incompatible_features: u64,
+
+    unmount_time: u64,
+
+    fs_reserve_block_count: u64,
+    fs_quota_block_count: u64,
+    fs_alloc_count: u64,
+
+    meta_crypto: WrappedMetaCryptoState,
+
+    root_tree_type: u32,
+    extentref_tree_type: u32,
+    snap_meta_tree_type: u32,
+
+    omap_oid: Oid,
+    root_tree_oid: Oid,
+    extentref_tree_oid: Oid,
+    snap_meta_tree_oid: Oid,
+
+    revert_to_xid: Xid,
+    revert_to_sblock_oid: Oid,
+
+    next_obj_id: u64,
+
+    num_files: u64,
+    num_directories: u64,
+    num_symlinks: u64,
+    num_other_fsobjects: u64,
+    num_snapshots: u64,
+
+    total_blocks_alloced: u64,
+    total_blocks_freed: u64,
+
+    vol_uuid: Uuid,
+    last_mod_time: u64,
+
+    fs_flags: u64,
+
+    formatted_by: ApfsModifiedBy,
+    modified_by: [ApfsModifiedBy; APFS_MAX_HIST],
+
+    pub volname: [u8; APFS_VOLNAME_LEN],
+    next_doc_id: u32,
+    
+    role: u16,
+    ved: u16,
+
+    root_to_xid: Xid,
+    er_state_oid: Oid,
+
+    cloneinfo_id_epoch: u64,
+    cloneinfo_xid: u64,
+
+    snap_meta_ext_oid: Oid,
+
+    volume_group_id: Uuid,
+
+    integrity_meta_oid: Oid,
+
+    fext_tree_oid: Oid,
+    fext_tree_type: u32,
+
+    reserved_type: u32,
+    reserved_oid: Oid,
+}
+
+impl ApfsSuperblock {
+    fn import_modified_by(source: &mut dyn Read) -> io::Result<[ApfsModifiedBy; APFS_MAX_HIST]> {
+        let mut values = [ApfsModifiedBy::default(); APFS_MAX_HIST];
+        for entry in values.iter_mut() {
+            *entry = ApfsModifiedBy::import(source)?;
+        }
+        Ok(values)
+    }
+
+    fn import_volname(source: &mut dyn Read) -> io::Result<[u8; APFS_VOLNAME_LEN]> {
+        let mut values = [0; APFS_VOLNAME_LEN];
+        source.read_exact(&mut values[..])?;
+        Ok(values)
+    }
+
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            magic: source.read_u32::<LittleEndian>()?,
+            fs_index: source.read_u32::<LittleEndian>()?,
+
+            features: source.read_u64::<LittleEndian>()?,
+            readonly_compatible_features: source.read_u64::<LittleEndian>()?,
+            incompatible_features: source.read_u64::<LittleEndian>()?,
+
+            unmount_time: source.read_u64::<LittleEndian>()?,
+
+            fs_reserve_block_count: source.read_u64::<LittleEndian>()?,
+            fs_quota_block_count: source.read_u64::<LittleEndian>()?,
+            fs_alloc_count: source.read_u64::<LittleEndian>()?,
+
+            meta_crypto: WrappedMetaCryptoState::import(source)?,
+
+            root_tree_type: source.read_u32::<LittleEndian>()?,
+            extentref_tree_type: source.read_u32::<LittleEndian>()?,
+            snap_meta_tree_type: source.read_u32::<LittleEndian>()?,
+
+            omap_oid: Oid::import(source)?,
+            root_tree_oid: Oid::import(source)?,
+            extentref_tree_oid: Oid::import(source)?,
+            snap_meta_tree_oid: Oid::import(source)?,
+
+            revert_to_xid: Xid::import(source)?,
+            revert_to_sblock_oid: Oid::import(source)?,
+
+            next_obj_id: source.read_u64::<LittleEndian>()?,
+
+            num_files: source.read_u64::<LittleEndian>()?,
+            num_directories: source.read_u64::<LittleEndian>()?,
+            num_symlinks: source.read_u64::<LittleEndian>()?,
+            num_other_fsobjects: source.read_u64::<LittleEndian>()?,
+            num_snapshots: source.read_u64::<LittleEndian>()?,
+
+            total_blocks_alloced: source.read_u64::<LittleEndian>()?,
+            total_blocks_freed: source.read_u64::<LittleEndian>()?,
+
+            vol_uuid: import_uuid(source)?,
+            last_mod_time: source.read_u64::<LittleEndian>()?,
+
+            fs_flags: source.read_u64::<LittleEndian>()?,
+
+            formatted_by: ApfsModifiedBy::import(source)?,
+            modified_by: Self::import_modified_by(source)?,
+
+            volname: Self::import_volname(source)?,
+            next_doc_id: source.read_u32::<LittleEndian>()?,
+            
+            role: source.read_u16::<LittleEndian>()?,
+            ved: source.read_u16::<LittleEndian>()?,
+
+            root_to_xid: Xid::import(source)?,
+            er_state_oid: Oid::import(source)?,
+
+            cloneinfo_id_epoch: source.read_u64::<LittleEndian>()?,
+            cloneinfo_xid: source.read_u64::<LittleEndian>()?,
+
+            snap_meta_ext_oid: Oid::import(source)?,
+
+            volume_group_id: import_uuid(source)?,
+
+            integrity_meta_oid: Oid::import(source)?,
+
+            fext_tree_oid: Oid::import(source)?,
+            fext_tree_type: source.read_u32::<LittleEndian>()?,
+
+            reserved_type: source.read_u32::<LittleEndian>()?,
+            reserved_oid: Oid::import(source)?,
+        })
+    }
+}
 
 
 // B-Tree data structures
@@ -770,5 +955,39 @@ impl BtnIndexNodeVal {
         };
         source.read_exact(&mut value.child_hash)?;
         Ok(value)
+    }
+}
+
+
+// Encryption
+
+// These types for encrytion are unfinished, but needed to skip over in Volume superblock
+type cp_key_class_t = u32;
+type cp_key_os_version_t = u32;
+type cp_key_revision_t = u16;
+type crypto_flags_t = u32;
+
+#[derive(Debug)]
+struct WrappedMetaCryptoState {
+    major_version: u16,
+    minor_version: u16,
+    cpflags: crypto_flags_t,
+    persistent_class: cp_key_class_t,
+    key_os_version: cp_key_os_version_t,
+    key_revision: cp_key_revision_t,
+    unused: u16,
+}
+
+impl WrappedMetaCryptoState  {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            major_version: source.read_u16::<LittleEndian>()?,
+            minor_version: source.read_u16::<LittleEndian>()?,
+            cpflags: source.read_u32::<LittleEndian>()?,
+            persistent_class: source.read_u32::<LittleEndian>()?,
+            key_os_version: source.read_u32::<LittleEndian>()?,
+            key_revision: source.read_u16::<LittleEndian>()?,
+            unused: source.read_u16::<LittleEndian>()?,
+        })
     }
 }

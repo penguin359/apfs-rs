@@ -39,8 +39,8 @@ mod tests {
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.cksum, fletcher64(&block[8..]), "cksum");
-        assert_eq!(header.objtype & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        assert_eq!(header.objtype & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+        assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
+        assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
     }
 
     #[test]
@@ -164,11 +164,18 @@ pub struct BtreeNodeObject {
 }
 
 #[derive(Debug)]
+pub struct ApfsSuperblockObject {
+    header: ObjPhys,
+    body: ApfsSuperblock,
+}
+
+#[derive(Debug)]
 pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
     ObjectMap(ObjectMapObject),
     BtreeNode(BtreeNodeObject),
+    ApfsSuperblock(ApfsSuperblockObject),
 }
 
 pub struct APFS<S: Read + Seek> {
@@ -200,7 +207,7 @@ impl<S: Read + Seek> APFS<S> {
         if header.cksum != fletcher64(&block[8..]) {
             return Err(io::Error::new(io::ErrorKind::Other, "Bad object checksum"));
         }
-        let r#type = FromPrimitive::from_u32(header.objtype & OBJECT_TYPE_MASK);
+        let r#type = FromPrimitive::from_u32(header.r#type & OBJECT_TYPE_MASK);
         let object = match r#type {
             Some(ObjectType::NxSuperblock) =>
                 APFSObject::Superblock(NxSuperblockObject {
@@ -221,6 +228,11 @@ impl<S: Read + Seek> APFS<S> {
                 APFSObject::BtreeNode(BtreeNodeObject {
                 header,
                 body: BtreeNodePhys::import(&mut cursor)?,
+            }),
+            Some(ObjectType::Fs) =>
+                APFSObject::ApfsSuperblock(ApfsSuperblockObject {
+                header,
+                body: ApfsSuperblock::import(&mut cursor)?,
             }),
             _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", r#type))); },
         };
