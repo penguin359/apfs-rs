@@ -614,6 +614,104 @@ impl ApfsModifiedBy {
 }
 
 
+bitflags! {
+    pub struct VolumeFlags: u64 {
+        const UNENCRYPTED = 0x00000001;
+        const RESERVED_2 = 0x00000002;
+        const RESERVED_4 = 0x00000004;
+        const ONEKEY = 0x00000008;
+        const SPILLEDOVER = 0x00000010;
+        const RUN_SPILLOVER_CLEANER = 0x00000020;
+        const ALWAYS_CHECK_EXTENTREF = 0x00000040;
+        const RESERVED_80 = 0x00000080;
+        const RESERVED_100 = 0x00000100;
+
+        const FLAGS_VALID_MASK = Self::UNENCRYPTED.bits
+            | Self::RESERVED_2.bits
+            | Self::RESERVED_4.bits
+            | Self::ONEKEY.bits
+            | Self::SPILLEDOVER.bits
+            | Self::RUN_SPILLOVER_CLEANER.bits
+            | Self::ALWAYS_CHECK_EXTENTREF.bits
+            | Self::RESERVED_80.bits
+            | Self::RESERVED_100.bits;
+
+        const CRYPTOFLAGS = Self::UNENCRYPTED.bits
+            | Self::ONEKEY.bits;
+    }
+}
+
+const APFS_VOLUME_ENUM_SHIFT: usize = 6;
+
+bitflags! {
+    struct VolumeRoles: u16 {
+        const ROLE_NONE = 0x0000;
+
+        const ROLE_SYSTEM = 0x0001;
+        const ROLE_USER = 0x0002;
+        const ROLE_RECOVERY = 0x0004;
+        const ROLE_VM = 0x0008;
+        const ROLE_PREBOOT = 0x0010;
+        const ROLE_INSTALLER = 0x0020;
+
+        const ROLE_DATA = (1 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_BASEBAND = (2 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_UPDATE = (3 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_XART = (4 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_HARDWARE = (5 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_BACKUP = (6 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_RESERVED_7 = (7 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_RESERVED_8 = (8 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_ENTERPRISE = (9 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_RESERVED_10 = (10 << APFS_VOLUME_ENUM_SHIFT);
+        const ROLE_PRELOGIN = (11 << APFS_VOLUME_ENUM_SHIFT);
+    }
+}
+
+bitflags! {
+    struct VolumeFeatureFlags: u64 {
+        const DEFRAG_PRERELEASE = 0x00000001;
+        const HARDLINK_MAP_RECORDS = 0x00000002;
+        const DEFRAG = 0x00000004;
+        const STRICTATIME = 0x00000008;
+        const VOLGRP_SYSTEM_INO_SPACE = 0x00000010;
+
+        const SUPPORTED_MASK = Self::DEFRAG.bits
+            | Self::DEFRAG_PRERELEASE.bits
+            | Self::HARDLINK_MAP_RECORDS.bits
+            | Self::STRICTATIME.bits
+            | Self::VOLGRP_SYSTEM_INO_SPACE.bits;
+    }
+}
+
+bitflags! {
+    struct VolumeRocompatFlags: u64 {
+        const SUPPORTED_MASK = 0;
+    }
+}
+
+bitflags! {
+    struct VolumeIncompatFlags: u64 {
+        const CASE_INSENSITIVE = 0x00000001;
+        const DATALESS_SNAPS = 0x00000002;
+        const ENC_ROLLED = 0x00000004;
+        const NORMALIZATION_INSENSITIVE = 0x00000008;
+        const INCOMPLETE_RESTORE = 0x00000010;
+        const SEALED_VOLUME = 0x00000020;
+        const RESERVED_40 = 0x00000040;
+
+        const SUPPORTED_MASK = Self::CASE_INSENSITIVE.bits
+            | Self::DATALESS_SNAPS.bits
+            | Self::ENC_ROLLED.bits
+            | Self::NORMALIZATION_INSENSITIVE.bits
+            | Self::INCOMPLETE_RESTORE.bits
+            | Self::SEALED_VOLUME.bits
+            | Self::RESERVED_40.bits;
+    }
+}
+
+
+
 pub const APFS_MAGIC: u32   = u32_code!(b"BSPA");
 const APFS_MAX_HIST: usize = 8;
 const APFS_VOLNAME_LEN: usize = 256;
@@ -625,9 +723,9 @@ pub struct ApfsSuperblock {
     magic: u32,
     fs_index: u32,
 
-    features: u64,
-    readonly_compatible_features: u64,
-    incompatible_features: u64,
+    features: VolumeFeatureFlags,
+    readonly_compatible_features: VolumeRocompatFlags,
+    incompatible_features: VolumeIncompatFlags,
 
     unmount_time: u64,
 
@@ -663,7 +761,7 @@ pub struct ApfsSuperblock {
     vol_uuid: Uuid,
     last_mod_time: u64,
 
-    fs_flags: u64,
+    fs_flags: VolumeFlags,
 
     formatted_by: ApfsModifiedBy,
     modified_by: [ApfsModifiedBy; APFS_MAX_HIST],
@@ -671,8 +769,8 @@ pub struct ApfsSuperblock {
     pub volname: [u8; APFS_VOLNAME_LEN],
     next_doc_id: u32,
     
-    role: u16,
-    ved: u16,
+    role: VolumeRoles,
+    reserved: u16,
 
     root_to_xid: Xid,
     er_state_oid: Oid,
@@ -713,9 +811,12 @@ impl ApfsSuperblock {
             magic: source.read_u32::<LittleEndian>()?,
             fs_index: source.read_u32::<LittleEndian>()?,
 
-            features: source.read_u64::<LittleEndian>()?,
-            readonly_compatible_features: source.read_u64::<LittleEndian>()?,
-            incompatible_features: source.read_u64::<LittleEndian>()?,
+            features: VolumeFeatureFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            readonly_compatible_features: VolumeRocompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            incompatible_features: VolumeIncompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
 
             unmount_time: source.read_u64::<LittleEndian>()?,
 
@@ -751,7 +852,8 @@ impl ApfsSuperblock {
             vol_uuid: import_uuid(source)?,
             last_mod_time: source.read_u64::<LittleEndian>()?,
 
-            fs_flags: source.read_u64::<LittleEndian>()?,
+            fs_flags: VolumeFlags::from_bits(source.read_u64::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
 
             formatted_by: ApfsModifiedBy::import(source)?,
             modified_by: Self::import_modified_by(source)?,
@@ -759,8 +861,9 @@ impl ApfsSuperblock {
             volname: Self::import_volname(source)?,
             next_doc_id: source.read_u32::<LittleEndian>()?,
             
-            role: source.read_u16::<LittleEndian>()?,
-            ved: source.read_u16::<LittleEndian>()?,
+            role: VolumeRoles::from_bits(source.read_u16::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            reserved: source.read_u16::<LittleEndian>()?,
 
             root_to_xid: Xid::import(source)?,
             er_state_oid: Oid::import(source)?,
