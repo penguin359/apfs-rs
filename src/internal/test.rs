@@ -355,7 +355,7 @@ fn test_load_object_map_btree() {
     assert_eq!(value.flags, OvFlags::empty(), "value flags");
     assert_eq!(value.size, 4096, "value size");
     assert_eq!(value.paddr, Paddr(0x66), "value paddr");
-    let mut cursor = Cursor::new(&buffer[4096-40..]);
+    let mut cursor = Cursor::new(&buffer[buffer.len()-40..]);
     let info = BtreeInfo::import(&mut cursor).unwrap();
     assert_eq!(info.fixed.flags, BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL, "flags");
     assert_eq!(info.fixed.node_size, 4096, "node size");
@@ -365,4 +365,99 @@ fn test_load_object_map_btree() {
     assert_eq!(info.longest_val, 16, "longest val");
     assert_eq!(info.key_count, 1, "key count");
     assert_eq!(info.node_count, 1, "node count");
+}
+
+#[test]
+fn test_load_object_map_btree_mock() {
+    let mut buffer = [0u8; 4096];
+    let mut file = File::open(test_dir().join("btree.blob")).expect("Unable to load blob");
+    file.read_exact(&mut buffer).expect("Short read");
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).expect("failed to decoded object header");
+    let node = BtreeNodePhys::import(&mut cursor).expect("failed to decoded b-tree header");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
+    assert_eq!(header.oid, Oid(0x068), "oid");
+    assert_eq!(header.xid, Xid(4), "xid");
+    assert_eq!(header.r#type.r#type(), ObjectType::Btree, "type");
+    assert_eq!(header.r#type.storage(), StorageType::Physical, "storage");
+    assert_eq!(header.subtype.r#type(), ObjectType::Omap, "subtype");
+    assert_eq!(node.flags, BtnFlags::ROOT | BtnFlags::LEAF | BtnFlags::FIXED_KV_SIZE, "flags");
+    assert_eq!(node.level, 0, "level");
+    assert_eq!(node.nkeys, 6, "nkeys");
+    assert_eq!(node.table_space.off, 0, "table space off");
+    assert_eq!(node.table_space.len, 0x01c0, "table space len");
+    assert_eq!(node.free_space.off, 0x20, "free space off");
+    assert_eq!(node.free_space.len, 0x0da0, "free space len");
+    assert_eq!(node.key_free_list.off, 0x10, "key free list off");
+    assert_eq!(node.key_free_list.len, 0x0010, "key free list len");
+    assert_eq!(node.val_free_list.off, 0x20, "val free list off");
+    assert_eq!(node.val_free_list.len, 0x0010, "val free list len");
+    let mut cursor = Cursor::new(&node.data[..]);
+    let mut entries = Vec::new();
+    for _ in 0..node.table_space.len/4 {
+        entries.push(KVoff::import(&mut cursor).expect("failed to decoded b-tree toc"));
+    }
+    assert_eq!(entries[0].k, 0x0000, "table entry 0 key off");
+    assert_eq!(entries[0].v, 0x0010, "table entry 0 val off");
+    assert_eq!(entries[1].k, 0x0010, "table entry 1 key off");
+    assert_eq!(entries[1].v, 0x0020, "table entry 1 val off");
+    assert_eq!(entries[2].k, 0x0020, "table entry 2 key off");
+    assert_eq!(entries[2].v, 0x0030, "table entry 2 val off");
+    assert_eq!(entries[3].k, 0x0030, "table entry 3 key off");
+    assert_eq!(entries[3].v, 0x0040, "table entry 3 val off");
+    assert_eq!(entries[4].k, 0x0040, "table entry 4 key off");
+    assert_eq!(entries[4].v, 0x0050, "table entry 4 val off");
+    assert_eq!(entries[5].k, 0x0050, "table entry 5 key off");
+    assert_eq!(entries[5].v, 0x0060, "table entry 5 val off");
+    assert_eq!(entries[6].k, 0x0000, "table entry 6 key off");
+    assert_eq!(entries[6].v, 0x0000, "table entry 6 val off");
+    let mut keys = Vec::new();
+    for _ in 0..node.nkeys {
+        keys.push(OmapKey::import(&mut cursor).expect("failed to decode omap key"));
+    }
+    assert_eq!(keys[0].oid, Oid(0x0586), "key 0 oid");
+    assert_eq!(keys[0].xid, Xid(0x2000), "key 0 xid");
+    assert_eq!(keys[1].oid, Oid(0x0588), "key 1 oid");
+    assert_eq!(keys[1].xid, Xid(0x2101), "key 1 xid");
+    assert_eq!(keys[2].oid, Oid(0x0588), "key 2 oid");
+    assert_eq!(keys[2].xid, Xid(0x2202), "key 2 xid");
+    assert_eq!(keys[3].oid, Oid(0x0588), "key 3 oid");
+    assert_eq!(keys[3].xid, Xid(0x2300), "key 3 xid");
+    assert_eq!(keys[4].oid, Oid(0x0589), "key 4 oid");
+    assert_eq!(keys[4].xid, Xid(0x1000), "key 4 xid");
+    assert_eq!(keys[5].oid, Oid(0x0589), "key 5 oid");
+    assert_eq!(keys[5].xid, Xid(0x2000), "key 5 xid");
+    let mut cursor = Cursor::new(&node.data[node.data.len()-40-entries[5].v as usize..node.data.len()-40]);
+    let mut values = Vec::new();
+    for _ in 0..node.nkeys {
+        values.insert(0, OmapVal::import(&mut cursor).expect("failed to decode omap value"));
+    }
+    assert_eq!(values[0].flags, OvFlags::empty(), "value 0 flags");
+    assert_eq!(values[0].size, 4096,              "value 0 size");
+    assert_eq!(values[0].paddr, Paddr(0x400),     "value 0 paddr");
+    assert_eq!(values[1].flags, OvFlags::empty(), "value 1 flags");
+    assert_eq!(values[1].size, 4096,              "value 1 size");
+    assert_eq!(values[1].paddr, Paddr(0x200),     "value 1 paddr");
+    assert_eq!(values[2].flags, OvFlags::empty(), "value 2 flags");
+    assert_eq!(values[2].size, 4096,              "value 2 size");
+    assert_eq!(values[2].paddr, Paddr(0x300),     "value 2 paddr");
+    assert_eq!(values[3].flags, OvFlags::empty(), "value 3 flags");
+    assert_eq!(values[3].size, 4096,              "value 3 size");
+    assert_eq!(values[3].paddr, Paddr(0x100),     "value 3 paddr");
+    assert_eq!(values[4].flags, OvFlags::empty(), "value 4 flags");
+    assert_eq!(values[4].size, 4096,              "value 4 size");
+    assert_eq!(values[4].paddr, Paddr(0x500),     "value 4 paddr");
+    assert_eq!(values[5].flags, OvFlags::empty(), "value 5 flags");
+    assert_eq!(values[5].size, 4096,              "value 5 size");
+    assert_eq!(values[5].paddr, Paddr(0x600),     "value 5 paddr");
+    let mut cursor = Cursor::new(&buffer[buffer.len()-40..]);
+    let info = BtreeInfo::import(&mut cursor).expect("failed to decoded b-tree info");
+    assert_eq!(info.fixed.flags, BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL, "flags");
+    assert_eq!(info.fixed.node_size, 4096, "node size");
+    assert_eq!(info.fixed.key_size, 16, "key size");
+    assert_eq!(info.fixed.val_size, 16, "val size");
+    assert_eq!(info.longest_key, 16, "longest key");
+    assert_eq!(info.longest_val, 16, "longest val");
+    assert_eq!(info.key_count, 6, "key count");
+    assert_eq!(info.node_count, 6, "node count");
 }

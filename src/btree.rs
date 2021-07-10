@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use crate::internal::Oid;
 use crate::internal::Xid;
 use crate::internal::OmapKey;
+use crate::internal::OvFlags;
 
 pub trait Key : PartialOrd + Ord + PartialEq + Eq {
 }
@@ -50,6 +51,8 @@ pub struct Record<K, V>
 
 #[cfg(test)]
 mod test {
+    use std::fs::File;
+
     use super::*;
 
     #[test]
@@ -180,6 +183,46 @@ mod test {
         assert!(btree.records[0].value.flags.is_empty());
         assert_eq!(btree.records[0].value.size, 4096);
         assert_eq!(btree.records[0].value.paddr, Paddr(102));
+    }
+
+    #[test]
+    fn test_load_object_map_btree_dummy() {
+        let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let btree_result = apfs.load_btree(Oid(0), StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        assert_eq!(btree.records.len(), 6);
+        assert_eq!(btree.records[0].key.oid, Oid(0x0586), "key 0 oid");
+        assert_eq!(btree.records[0].key.xid, Xid(0x2000), "key 0 xid");
+        assert_eq!(btree.records[1].key.oid, Oid(0x0588), "key 1 oid");
+        assert_eq!(btree.records[1].key.xid, Xid(0x2101), "key 1 xid");
+        assert_eq!(btree.records[2].key.oid, Oid(0x0588), "key 2 oid");
+        assert_eq!(btree.records[2].key.xid, Xid(0x2202), "key 2 xid");
+        assert_eq!(btree.records[3].key.oid, Oid(0x0588), "key 3 oid");
+        assert_eq!(btree.records[3].key.xid, Xid(0x2300), "key 3 xid");
+        assert_eq!(btree.records[4].key.oid, Oid(0x0589), "key 4 oid");
+        assert_eq!(btree.records[4].key.xid, Xid(0x1000), "key 4 xid");
+        assert_eq!(btree.records[5].key.oid, Oid(0x0589), "key 5 oid");
+        assert_eq!(btree.records[5].key.xid, Xid(0x2000), "key 5 xid");
+        assert_eq!(btree.records[0].value.flags, OvFlags::empty(), "value 0 flags");
+        assert_eq!(btree.records[0].value.size, 4096,              "value 0 size");
+        assert_eq!(btree.records[0].value.paddr, Paddr(0x400),     "value 0 paddr");
+        assert_eq!(btree.records[1].value.flags, OvFlags::empty(), "value 1 flags");
+        assert_eq!(btree.records[1].value.size, 4096,              "value 1 size");
+        assert_eq!(btree.records[1].value.paddr, Paddr(0x200),     "value 1 paddr");
+        assert_eq!(btree.records[2].value.flags, OvFlags::empty(), "value 2 flags");
+        assert_eq!(btree.records[2].value.size, 4096,              "value 2 size");
+        assert_eq!(btree.records[2].value.paddr, Paddr(0x300),     "value 2 paddr");
+        assert_eq!(btree.records[3].value.flags, OvFlags::empty(), "value 3 flags");
+        assert_eq!(btree.records[3].value.size, 4096,              "value 3 size");
+        assert_eq!(btree.records[3].value.paddr, Paddr(0x100),     "value 3 paddr");
+        assert_eq!(btree.records[4].value.flags, OvFlags::empty(), "value 4 flags");
+        assert_eq!(btree.records[4].value.size, 4096,              "value 4 size");
+        assert_eq!(btree.records[4].value.paddr, Paddr(0x500),     "value 4 paddr");
+        assert_eq!(btree.records[5].value.flags, OvFlags::empty(), "value 5 flags");
+        assert_eq!(btree.records[5].value.size, 4096,              "value 5 size");
+        assert_eq!(btree.records[5].value.paddr, Paddr(0x600),     "value 5 paddr");
     }
 
     #[test]
