@@ -4,6 +4,9 @@
 #[macro_use]
 extern crate bitflags;
 
+#[macro_use]
+extern crate num_derive;
+
 
 #[cfg(test)]
 mod tests {
@@ -39,8 +42,8 @@ mod tests {
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.cksum, fletcher64(&block[8..]), "bad checksum");
-        assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+        assert_eq!(header.r#type.r#type(), ObjectType::NxSuperblock, "type");
+        assert_eq!(header.r#type.storage(), StorageType::Ephemeral, "type");
     }
 
     
@@ -55,8 +58,8 @@ mod tests {
         let mut cursor = Cursor::new(&block[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
         assert_eq!(header.cksum, fletcher64(&block[8..]), "bad checksum");
-        assert_eq!(header.r#type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        assert_eq!(header.r#type & OBJECT_TYPE_FLAGS_MASK, StorageType::Ephemeral as u32, "type");
+        assert_eq!(header.r#type.r#type(), ObjectType::NxSuperblock, "type");
+        assert_eq!(header.r#type.storage(), StorageType::Ephemeral, "type");
     }
     
 
@@ -81,8 +84,8 @@ mod tests {
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
         //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "bad checksum");
-        //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
+        //assert_eq!(header.o_type.r#type(), ObjectType::NxSuperblock, "type");
+        //assert_eq!(header.o_type.storage(), OBJ_EPHEMERAL, "type");
     }
 
     #[test]
@@ -117,8 +120,8 @@ mod tests {
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
         //assert_eq!(header.o_cksum, fletcher64(&block[8..]), "bad checksum");
-        //assert_eq!(header.o_type & OBJECT_TYPE_MASK, ObjectType::NxSuperblock as u32, "type");
-        //assert_eq!(header.o_type & OBJECT_TYPE_FLAGS_MASK, OBJ_EPHEMERAL, "type");
+        //assert_eq!(header.o_type.r#type(), ObjectType::NxSuperblock, "type");
+        //assert_eq!(header.o_type.storage(), OBJ_EPHEMERAL, "type");
     }
 }
 
@@ -231,34 +234,33 @@ impl<S: Read + Seek> APFS<S> {
         if header.cksum != fletcher64(&block[8..]) {
             return Err(io::Error::new(io::ErrorKind::Other, "Bad object checksum"));
         }
-        let r#type = FromPrimitive::from_u32(header.r#type & OBJECT_TYPE_MASK);
-        let object = match r#type {
-            Some(ObjectType::NxSuperblock) =>
+        let object = match header.r#type.r#type() {
+            ObjectType::NxSuperblock =>
                 APFSObject::Superblock(NxSuperblockObject {
                 header,
                 body: NxSuperblock::import(&mut cursor)?,
             }),
-            Some(ObjectType::CheckpointMap) =>
+            ObjectType::CheckpointMap =>
                 APFSObject::CheckpointMapping(CheckpointMapPhysObject {
                 header,
                 body: CheckpointMapPhys::import(&mut cursor)?,
             }),
-            Some(ObjectType::Omap) =>
+            ObjectType::Omap =>
                 APFSObject::ObjectMap(ObjectMapObject {
                 header,
                 body: OmapPhys::import(&mut cursor)?,
             }),
-            Some(ObjectType::Btree) =>
+            ObjectType::Btree =>
                 APFSObject::BtreeNode(BtreeNodeObject {
                 header,
                 body: BtreeNodePhys::import(&mut cursor)?,
             }),
-            Some(ObjectType::Fs) =>
+            ObjectType::Fs =>
                 APFSObject::ApfsSuperblock(ApfsSuperblockObject {
                 header,
                 body: ApfsSuperblock::import(&mut cursor)?,
             }),
-            _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", r#type))); },
+            _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", header.r#type.r#type()))); },
         };
         Ok(object)
     }

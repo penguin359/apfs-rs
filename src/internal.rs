@@ -2,7 +2,7 @@
 
 use std::io::{self, prelude::*};
 
-use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use bitflags;
@@ -73,8 +73,8 @@ pub struct ObjPhys {
     pub cksum: u64,
     oid: Oid,
     xid: Xid,
-    pub r#type: u32,
-    subtype: u32,
+    pub r#type: ObjectTypeAndFlags,
+    subtype: ObjectTypeAndFlags,
 }
 
 impl ObjPhys {
@@ -83,8 +83,8 @@ impl ObjPhys {
             cksum: source.read_u64::<LittleEndian>()?,
             oid: Oid::import(source)?,
             xid: Xid::import(source)?,
-            r#type: source.read_u32::<LittleEndian>()?,
-            subtype: source.read_u32::<LittleEndian>()?,
+            r#type: ObjectTypeAndFlags::import(source)?,
+            subtype: ObjectTypeAndFlags::import(source)?,
         })
     }
 }
@@ -103,7 +103,7 @@ const OBJ_STORAGETYPE_MASK              : u32 = 0xc0000000;
 const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
 #[repr(u32)]
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, PartialEq, FromPrimitive)]
 pub enum ObjectType {
     NxSuperblock         = 0x00000001,
 
@@ -152,7 +152,8 @@ pub enum ObjectType {
     MediaKeybag           = 0x79656b6d,  // u32_code!(b"mkey"),
 }
 
-
+#[repr(u32)]
+#[derive(Debug, PartialEq, FromPrimitive)]
 pub enum StorageType {
     Virtual                       = 0x00000000,
     Ephemeral                     = 0x80000000,
@@ -160,10 +161,43 @@ pub enum StorageType {
 }
 
 bitflags! {
-    struct ObjTypeFlags: u32 {
+    pub struct ObjTypeFlags: u32 {
         const NOHEADER        = 0x20000000;
         const ENCRYPTED       = 0x10000000;
         const NONPERSISTENT   = 0x08000000;
+    }
+}
+
+pub struct ObjectTypeAndFlags(u32);
+
+impl ObjectTypeAndFlags {
+    pub fn new(value: u32) -> io::Result<ObjectTypeAndFlags> {
+        ObjectType::from_u32(value & OBJECT_TYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown object type"))?;
+        StorageType::from_u32(value & OBJ_STORAGETYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown storage type"))?;
+        ObjTypeFlags::from_bits(value & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK)).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown object flags"))?;
+        Ok(ObjectTypeAndFlags(value))
+    }
+
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Self::new(source.read_u32::<LittleEndian>()?)
+    }
+
+    pub fn r#type(&self) -> ObjectType {
+        ObjectType::from_u32(self.0 & OBJECT_TYPE_MASK).expect("Unknown object type")
+    }
+
+    pub fn storage(&self) -> StorageType {
+        StorageType::from_u32(self.0 & OBJ_STORAGETYPE_MASK).expect("Unknown storage type")
+    }
+
+    pub fn flags(&self) -> ObjTypeFlags {
+        ObjTypeFlags::from_bits(self.0 & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK)).expect("Unknown object flags")
+    }
+}
+
+impl std::fmt::Debug for ObjectTypeAndFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:?}: {:?} ({:?})", self.r#type(), self.storage(), self.flags())
     }
 }
 
@@ -405,8 +439,8 @@ const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
 
 #[derive(Debug)]
 struct CheckpointMapping {
-    r#type:    u32,
-    subtype:    u32,
+    r#type:    ObjectTypeAndFlags,
+    subtype:    ObjectTypeAndFlags,
     size:       u32,
     pad:        u32,
     fs_oid:     Oid,
@@ -417,8 +451,8 @@ struct CheckpointMapping {
 impl CheckpointMapping {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            r#type: source.read_u32::<LittleEndian>()?,
-            subtype: source.read_u32::<LittleEndian>()?,
+            r#type: ObjectTypeAndFlags::import(source)?,
+            subtype: ObjectTypeAndFlags::import(source)?,
             size: source.read_u32::<LittleEndian>()?,
             pad: source.read_u32::<LittleEndian>()?,
             fs_oid: Oid::import(source)?,
@@ -491,8 +525,8 @@ pub struct OmapPhys {
         //om_o: ObjPhys,
         flags: OmFlags,
         snap_count: u32,
-        tree_type: u32,
-        snapshot_tree_type: u32,
+        tree_type: ObjectTypeAndFlags,
+        snapshot_tree_type: ObjectTypeAndFlags,
         pub tree_oid: Oid,
         snapshot_tree_oid: Oid,
         most_recent_snap: Xid,
@@ -506,8 +540,8 @@ impl OmapPhys {
             flags: OmFlags::from_bits(source.read_u32::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             snap_count: source.read_u32::<LittleEndian>()?,
-            tree_type: source.read_u32::<LittleEndian>()?,
-            snapshot_tree_type: source.read_u32::<LittleEndian>()?,
+            tree_type: ObjectTypeAndFlags::import(source)?,
+            snapshot_tree_type: ObjectTypeAndFlags::import(source)?,
             tree_oid: Oid::import(source)?,
             snapshot_tree_oid: Oid::import(source)?,
             most_recent_snap: Xid::import(source)?,
@@ -735,9 +769,9 @@ pub struct ApfsSuperblock {
 
     meta_crypto: WrappedMetaCryptoState,
 
-    root_tree_type: u32,
-    extentref_tree_type: u32,
-    snap_meta_tree_type: u32,
+    root_tree_type: ObjectTypeAndFlags,
+    extentref_tree_type: ObjectTypeAndFlags,
+    snap_meta_tree_type: ObjectTypeAndFlags,
 
     pub omap_oid: Oid,
     pub root_tree_oid: Oid,
@@ -785,7 +819,7 @@ pub struct ApfsSuperblock {
     integrity_meta_oid: Oid,
 
     fext_tree_oid: Oid,
-    fext_tree_type: u32,
+    fext_tree_type: ObjectTypeAndFlags,
 
     reserved_type: u32,
     reserved_oid: Oid,
@@ -826,9 +860,9 @@ impl ApfsSuperblock {
 
             meta_crypto: WrappedMetaCryptoState::import(source)?,
 
-            root_tree_type: source.read_u32::<LittleEndian>()?,
-            extentref_tree_type: source.read_u32::<LittleEndian>()?,
-            snap_meta_tree_type: source.read_u32::<LittleEndian>()?,
+            root_tree_type: ObjectTypeAndFlags::import(source)?,
+            extentref_tree_type: ObjectTypeAndFlags::import(source)?,
+            snap_meta_tree_type: ObjectTypeAndFlags::import(source)?,
 
             omap_oid: Oid::import(source)?,
             root_tree_oid: Oid::import(source)?,
@@ -878,7 +912,7 @@ impl ApfsSuperblock {
             integrity_meta_oid: Oid::import(source)?,
 
             fext_tree_oid: Oid::import(source)?,
-            fext_tree_type: source.read_u32::<LittleEndian>()?,
+            fext_tree_type: ObjectTypeAndFlags::import(source)?,
 
             reserved_type: source.read_u32::<LittleEndian>()?,
             reserved_oid: Oid::import(source)?,
