@@ -144,20 +144,6 @@ use fletcher::fletcher64;
 pub use internal::Paddr;
 
 
-//pub enum Node<K, R> {
-//    //HeaderNode(HeaderNode),
-//    //MapNode(MapNode),
-//    IndexNode(IndexNode<K>),
-//    //LeafNode(LeafNode<R>),
-//}
-
-#[derive(Debug)]
-pub struct Btree {
-    body: BtreeNodeObject,
-    info: BtreeInfo,
-    pub records: Vec<Record<OmapKey, OmapVal>>,
-}
-
 
 #[derive(Debug)]
 pub struct NxSuperblockObject {
@@ -194,6 +180,7 @@ pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
     ObjectMap(ObjectMapObject),
+    Btree(BtreeNodeObject),
     BtreeNode(BtreeNodeObject),
     ApfsSuperblock(ApfsSuperblockObject),
 }
@@ -215,9 +202,11 @@ impl APFS<File> {
         let superblock = NxSuperblock::import(&mut cursor).unwrap();
         Ok(APFS { source, block_size: superblock.block_size as usize })
     }
-}
 
-use btree::Record;
+    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree> {
+        btree::Btree::load_btree(self, oid, r#type)
+    }
+}
 
 impl<S: Read + Seek> APFS<S> {
     fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
@@ -251,6 +240,11 @@ impl<S: Read + Seek> APFS<S> {
                 body: OmapPhys::import(&mut cursor)?,
             }),
             ObjectType::Btree =>
+                APFSObject::Btree(BtreeNodeObject {
+                header,
+                body: BtreeNodePhys::import(&mut cursor)?,
+            }),
+            ObjectType::BtreeNode =>
                 APFSObject::BtreeNode(BtreeNodeObject {
                 header,
                 body: BtreeNodePhys::import(&mut cursor)?,
@@ -274,46 +268,5 @@ impl<S: Read + Seek> APFS<S> {
                 panic!("Unsupported");
             },
         })
-    }
-
-    /*
-    fn load_btree_node(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
-        let object = self.load_object_oid(oid, r#type)?;
-        let body = match object {
-            APFSObject::BtreeNode(x) => x,
-            _ => { panic!("Invalid type"); },
-        };
-        Ok(Btree { body })
-    }
-    */
-
-    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
-        let object = self.load_object_oid(oid, r#type)?;
-        let mut body = match object {
-            APFSObject::BtreeNode(x) => x,
-            _ => { panic!("Invalid type"); },
-        };
-        let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
-        body.body.data.truncate(body.body.data.len()-40);
-        let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
-        let mut cursor = Cursor::new(toc);
-        let mut items = vec![];
-        assert!(body.body.flags.contains(BtnFlags::LEAF));
-        let mut records = vec![];
-        for _ in 0..body.body.nkeys {
-            items.push(KVoff::import(&mut cursor)?);
-            let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k) as usize..(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
-            let mut c2 = Cursor::new(key_data);
-            let key = OmapKey::import(&mut c2)?;
-            let val_data = &body.body.data[(body.body.data.len() as u16 - items.last().unwrap().v) as usize..(body.body.data.len() as u16 -  items.last().unwrap().v + info.fixed.val_size as u16) as usize];
-            let mut c2 = Cursor::new(val_data);
-            let val = OmapVal::import(&mut c2)?;
-            let record = Record {
-                key,
-                value: val,
-            };
-            records.push(record);
-        }
-        Ok(Btree { body, info, records })
     }
 }

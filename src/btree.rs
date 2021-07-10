@@ -1,9 +1,18 @@
 use std::cmp::Ordering;
+use std::fs::File;
+use std::io::{self, prelude::*};
+use std::io::Cursor;
 
+
+use crate::KVoff;
 use crate::internal::Oid;
 use crate::internal::Xid;
-use crate::internal::OmapKey;
+use crate::internal::{BtnFlags, OmapKey};
+use crate::internal::OmapVal;
 use crate::internal::OvFlags;
+use crate::internal::BtreeInfo;
+
+use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
 pub trait Key : PartialOrd + Ord + PartialEq + Eq {
 }
@@ -14,11 +23,16 @@ pub trait Key : PartialOrd + Ord + PartialEq + Eq {
 //     xid: Xid,
 // }
 
+/* Object map keys match on the object ID equality and
+   a transaction ID that is less than or equal */
 impl Ord for OmapKey {
     fn cmp(&self, other: &Self) -> Ordering {
         let order = self.oid.cmp(&other.oid);
         match order {
-            Ordering::Equal => self.xid.cmp(&other.xid),
+            Ordering::Equal => match self.xid.cmp(&other.xid) {
+                Ordering::Less => Ordering::Less,
+                _ => Ordering::Equal,
+            },
             _ => order,
         }
     }
@@ -100,7 +114,8 @@ mod test {
         assert_eq!(key1.cmp(&key2), Ordering::Equal);
         assert_eq!(key1.cmp(&key_oid_less), Ordering::Greater);
         assert_eq!(key1.cmp(&key_oid_greater), Ordering::Less);
-        assert_eq!(key1.cmp(&key_xid_less), Ordering::Greater);
+        /* Matching keys have same Oid and and Xid less than or equal */
+        assert_eq!(key1.cmp(&key_xid_less), Ordering::Equal);
         assert_eq!(key1.cmp(&key_xid_greater), Ordering::Less);
         assert_eq!(key1.cmp(&key_oid_less_xid_less), Ordering::Greater);
         assert_eq!(key1.cmp(&key_oid_less_xid_greater), Ordering::Greater);
@@ -134,7 +149,6 @@ mod test {
         assert_ne!(key3, key4);
     }
 
-    use crate::{APFS, APFSObject, Paddr, StorageType};
     use crate::tests::test_dir;
 
     #[test]
@@ -156,7 +170,7 @@ mod test {
         //assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         let node = match btree {
-            APFSObject::BtreeNode(x) => x,
+            APFSObject::Btree(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
     }
@@ -174,7 +188,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.records.len(), 1);
@@ -189,7 +203,7 @@ mod test {
     fn test_load_object_map_btree_dummy() {
         let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
         let mut apfs = APFS { source, block_size: 4096 };
-        let btree_result = apfs.load_btree(Oid(0), StorageType::Physical);
+        let btree_result = Btree::load_btree(&mut apfs, Oid(0), StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.records.len(), 6);
@@ -238,7 +252,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_ne!(superblock.body.fs_oid[0], Oid(0));
@@ -256,5 +270,75 @@ mod test {
             _ => { panic!("Wrong object type!"); },
         };
         assert_eq!(volume.body.volname[0..7], *b"MYAPFS\0");
+    }
+}
+
+//pub enum Node<K, R> {
+//    //HeaderNode(HeaderNode),
+//    //MapNode(MapNode),
+//    IndexNode(IndexNode<K>),
+//    //LeafNode(LeafNode<R>),
+//}
+
+#[derive(Debug)]
+pub struct Btree {
+    body: BtreeNodeObject,
+    info: BtreeInfo,
+    pub records: Vec<Record<OmapKey, OmapVal>>,
+}
+
+enum BtreeRawObject {
+    BtreeRoot(BtreeNodeObject, BtreeInfo),
+    BtreeNonRoot(BtreeNodeObject),
+}
+
+impl Btree {
+    fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
+        let object = apfs.load_object_oid(oid, r#type)?;
+        let mut body = match object {
+            APFSObject::Btree(x) => x,
+            _ => { panic!("Invalid type"); },
+        };
+        let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
+        body.body.data.truncate(body.body.data.len()-40);
+        Ok(BtreeRawObject::BtreeRoot(body, info))
+    }
+
+    /*
+    fn load_btree_node(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+        let object = self.load_object_oid(oid, r#type)?;
+        let body = match object {
+            APFSObject::BtreeNode(x) => x,
+            _ => { panic!("Invalid type"); },
+        };
+        Ok(Btree { body })
+    }
+    */
+
+    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+        let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
+            BtreeRawObject::BtreeRoot(body, info) => (body, info),
+            _ => { unreachable!() },
+        };
+        let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
+        let mut cursor = Cursor::new(toc);
+        let mut items = vec![];
+        assert!(body.body.flags.contains(BtnFlags::LEAF));
+        let mut records = vec![];
+        for _ in 0..body.body.nkeys {
+            items.push(KVoff::import(&mut cursor)?);
+            let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k) as usize..(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
+            let mut c2 = Cursor::new(key_data);
+            let key = OmapKey::import(&mut c2)?;
+            let val_data = &body.body.data[(body.body.data.len() as u16 - items.last().unwrap().v) as usize..(body.body.data.len() as u16 -  items.last().unwrap().v + info.fixed.val_size as u16) as usize];
+            let mut c2 = Cursor::new(val_data);
+            let val = OmapVal::import(&mut c2)?;
+            let record = Record {
+                key,
+                value: val,
+            };
+            records.push(record);
+        }
+        Ok(Btree { body, info, records })
     }
 }
