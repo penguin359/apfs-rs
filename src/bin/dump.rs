@@ -1,4 +1,4 @@
-use apfs::{APFS, APFSObject, Paddr, StorageType};
+use apfs::{APFS, APFSObject, Oid, Paddr, StorageType};
 
 use std::env;
 
@@ -35,9 +35,14 @@ fn main() {
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
-        let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);
-        // assert!(btree_result.is_ok(), "Bad b-tree load");
-        // let btree = btree_result.unwrap();
-        // println!("Volume Root B-Tree: {:#?}", btree);
+        for record in btree.records {
+            let object = apfs.load_object_addr(record.value.paddr).unwrap();
+            // let root_tree_result = apfs.load_btree(Oid(record.value.paddr.0 as u64), StorageType::Physical);
+            // assert!(root_tree_result.is_ok(), "Bad b-tree load");
+            // let root_tree = root_tree_result.unwrap();
+            // println!("Volume Root B-Tree: {:#?}", root_tree);
         }
+
+        // let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);
+    }
 }

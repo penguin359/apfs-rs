@@ -12,6 +12,15 @@
 				"isDefault": true
 			},
 			"label": "rust: cargo test"
+		},
+		{
+			"type": "cargo",
+			"command": "check",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "rust: cargo check"
 		}
 	]
 }

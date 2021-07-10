@@ -22,7 +22,7 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Rust: cargo check - apfs"
+            "preLaunchTask": "rust: cargo check"
         },
         {
             "type": "lldb",
@@ -39,8 +39,25 @@
                     "kind": "bin"
                 }
             },
-            //"args": ["apfs-16k-cs.img"],
             "args": ["testdata/test-apfs.img"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'dump' (16k)",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=dump",
+                    "--package=apfs"
+                ],
+                "filter": {
+                    "name": "dump",
+                    "kind": "bin"
+                }
+            },
+            "args": ["testdata/apfs-16k-cs.img"],
             "cwd": "${workspaceFolder}"
         },
         {
