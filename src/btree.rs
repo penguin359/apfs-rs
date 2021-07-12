@@ -4,7 +4,7 @@ use std::io::{self, prelude::*};
 use std::io::Cursor;
 
 
-use crate::KVoff;
+use crate::{BtreeNodePhys, KVoff};
 use crate::internal::Oid;
 use crate::internal::Xid;
 use crate::internal::{BtnFlags, OmapKey};
@@ -191,12 +191,12 @@ mod test {
         let btree_result = Btree::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
-        assert_eq!(btree.records.len(), 1);
-        assert_eq!(btree.records[0].key.oid, Oid(1026));
-        assert_eq!(btree.records[0].key.xid, Xid(4));
-        assert!(btree.records[0].value.flags.is_empty());
-        assert_eq!(btree.records[0].value.size, 4096);
-        assert_eq!(btree.records[0].value.paddr, Paddr(102));
+        assert_eq!(btree.root.records.len(), 1);
+        assert_eq!(btree.root.records[0].key.oid, Oid(1026));
+        assert_eq!(btree.root.records[0].key.xid, Xid(4));
+        assert!(btree.root.records[0].value.flags.is_empty());
+        assert_eq!(btree.root.records[0].value.size, 4096);
+        assert_eq!(btree.root.records[0].value.paddr, Paddr(102));
     }
 
     #[test]
@@ -206,37 +206,37 @@ mod test {
         let btree_result = Btree::load_btree(&mut apfs, Oid(0), StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
-        assert_eq!(btree.records.len(), 6);
-        assert_eq!(btree.records[0].key.oid, Oid(0x0586), "key 0 oid");
-        assert_eq!(btree.records[0].key.xid, Xid(0x2000), "key 0 xid");
-        assert_eq!(btree.records[1].key.oid, Oid(0x0588), "key 1 oid");
-        assert_eq!(btree.records[1].key.xid, Xid(0x2101), "key 1 xid");
-        assert_eq!(btree.records[2].key.oid, Oid(0x0588), "key 2 oid");
-        assert_eq!(btree.records[2].key.xid, Xid(0x2202), "key 2 xid");
-        assert_eq!(btree.records[3].key.oid, Oid(0x0588), "key 3 oid");
-        assert_eq!(btree.records[3].key.xid, Xid(0x2300), "key 3 xid");
-        assert_eq!(btree.records[4].key.oid, Oid(0x0589), "key 4 oid");
-        assert_eq!(btree.records[4].key.xid, Xid(0x1000), "key 4 xid");
-        assert_eq!(btree.records[5].key.oid, Oid(0x0589), "key 5 oid");
-        assert_eq!(btree.records[5].key.xid, Xid(0x2000), "key 5 xid");
-        assert_eq!(btree.records[0].value.flags, OvFlags::empty(), "value 0 flags");
-        assert_eq!(btree.records[0].value.size, 4096,              "value 0 size");
-        assert_eq!(btree.records[0].value.paddr, Paddr(0x400),     "value 0 paddr");
-        assert_eq!(btree.records[1].value.flags, OvFlags::empty(), "value 1 flags");
-        assert_eq!(btree.records[1].value.size, 4096,              "value 1 size");
-        assert_eq!(btree.records[1].value.paddr, Paddr(0x200),     "value 1 paddr");
-        assert_eq!(btree.records[2].value.flags, OvFlags::empty(), "value 2 flags");
-        assert_eq!(btree.records[2].value.size, 4096,              "value 2 size");
-        assert_eq!(btree.records[2].value.paddr, Paddr(0x300),     "value 2 paddr");
-        assert_eq!(btree.records[3].value.flags, OvFlags::empty(), "value 3 flags");
-        assert_eq!(btree.records[3].value.size, 4096,              "value 3 size");
-        assert_eq!(btree.records[3].value.paddr, Paddr(0x100),     "value 3 paddr");
-        assert_eq!(btree.records[4].value.flags, OvFlags::empty(), "value 4 flags");
-        assert_eq!(btree.records[4].value.size, 4096,              "value 4 size");
-        assert_eq!(btree.records[4].value.paddr, Paddr(0x500),     "value 4 paddr");
-        assert_eq!(btree.records[5].value.flags, OvFlags::empty(), "value 5 flags");
-        assert_eq!(btree.records[5].value.size, 4096,              "value 5 size");
-        assert_eq!(btree.records[5].value.paddr, Paddr(0x600),     "value 5 paddr");
+        assert_eq!(btree.root.records.len(), 6);
+        assert_eq!(btree.root.records[0].key.oid, Oid(0x0586), "key 0 oid");
+        assert_eq!(btree.root.records[0].key.xid, Xid(0x2000), "key 0 xid");
+        assert_eq!(btree.root.records[1].key.oid, Oid(0x0588), "key 1 oid");
+        assert_eq!(btree.root.records[1].key.xid, Xid(0x2101), "key 1 xid");
+        assert_eq!(btree.root.records[2].key.oid, Oid(0x0588), "key 2 oid");
+        assert_eq!(btree.root.records[2].key.xid, Xid(0x2202), "key 2 xid");
+        assert_eq!(btree.root.records[3].key.oid, Oid(0x0588), "key 3 oid");
+        assert_eq!(btree.root.records[3].key.xid, Xid(0x2300), "key 3 xid");
+        assert_eq!(btree.root.records[4].key.oid, Oid(0x0589), "key 4 oid");
+        assert_eq!(btree.root.records[4].key.xid, Xid(0x1000), "key 4 xid");
+        assert_eq!(btree.root.records[5].key.oid, Oid(0x0589), "key 5 oid");
+        assert_eq!(btree.root.records[5].key.xid, Xid(0x2000), "key 5 xid");
+        assert_eq!(btree.root.records[0].value.flags, OvFlags::empty(), "value 0 flags");
+        assert_eq!(btree.root.records[0].value.size, 4096,              "value 0 size");
+        assert_eq!(btree.root.records[0].value.paddr, Paddr(0x400),     "value 0 paddr");
+        assert_eq!(btree.root.records[1].value.flags, OvFlags::empty(), "value 1 flags");
+        assert_eq!(btree.root.records[1].value.size, 4096,              "value 1 size");
+        assert_eq!(btree.root.records[1].value.paddr, Paddr(0x200),     "value 1 paddr");
+        assert_eq!(btree.root.records[2].value.flags, OvFlags::empty(), "value 2 flags");
+        assert_eq!(btree.root.records[2].value.size, 4096,              "value 2 size");
+        assert_eq!(btree.root.records[2].value.paddr, Paddr(0x300),     "value 2 paddr");
+        assert_eq!(btree.root.records[3].value.flags, OvFlags::empty(), "value 3 flags");
+        assert_eq!(btree.root.records[3].value.size, 4096,              "value 3 size");
+        assert_eq!(btree.root.records[3].value.paddr, Paddr(0x100),     "value 3 paddr");
+        assert_eq!(btree.root.records[4].value.flags, OvFlags::empty(), "value 4 flags");
+        assert_eq!(btree.root.records[4].value.size, 4096,              "value 4 size");
+        assert_eq!(btree.root.records[4].value.paddr, Paddr(0x500),     "value 4 paddr");
+        assert_eq!(btree.root.records[5].value.flags, OvFlags::empty(), "value 5 flags");
+        assert_eq!(btree.root.records[5].value.size, 4096,              "value 5 size");
+        assert_eq!(btree.root.records[5].value.paddr, Paddr(0x600),     "value 5 paddr");
     }
 
     #[test]
@@ -257,14 +257,14 @@ mod test {
         let btree = btree_result.unwrap();
         assert_ne!(superblock.body.fs_oid[0], Oid(0));
         let mut found = -1;
-        for idx in 0..btree.records.len() {
-            if btree.records[idx].key.oid == superblock.body.fs_oid[0] {
+        for idx in 0..btree.root.records.len() {
+            if btree.root.records[idx].key.oid == superblock.body.fs_oid[0] {
                 found = idx as isize;
                 break;
             }
         }
         assert!(found >= 0);
-        let object = apfs.load_object_addr(btree.records[found as usize].value.paddr).unwrap();
+        let object = apfs.load_object_addr(btree.root.records[found as usize].value.paddr).unwrap();
         let volume = match object {
             APFSObject::ApfsSuperblock(x) => x,
             _ => { panic!("Wrong object type!"); },
@@ -282,14 +282,24 @@ mod test {
 
 #[derive(Debug)]
 pub struct Btree {
-    body: BtreeNodeObject,
     info: BtreeInfo,
+    pub root: BtreeNode,
+}
+
+#[derive(Debug)]
+pub struct BtreeNode {
+    node: BtreeNodeObject,
     pub records: Vec<Record<OmapKey, OmapVal>>,
 }
 
 enum BtreeRawObject {
     BtreeRoot(BtreeNodeObject, BtreeInfo),
     BtreeNonRoot(BtreeNodeObject),
+}
+
+enum BtreeDecodedObject {
+    BtreeRoot(BtreeNode, BtreeInfo),
+    BtreeNonRoot(BtreeNode),
 }
 
 impl Btree {
@@ -304,22 +314,12 @@ impl Btree {
         Ok(BtreeRawObject::BtreeRoot(body, info))
     }
 
-    /*
-    fn load_btree_node(&mut self, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
-        let object = self.load_object_oid(oid, r#type)?;
-        let body = match object {
-            APFSObject::BtreeNode(x) => x,
-            _ => { panic!("Invalid type"); },
-        };
-        Ok(Btree { body })
-    }
-    */
-
-    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject> {
         let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
-            BtreeRawObject::BtreeRoot(body, info) => (body, info),
+            BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
             _ => { unreachable!() },
         };
+        let info = info.unwrap();
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
         let mut cursor = Cursor::new(toc);
         let mut items = vec![];
@@ -339,6 +339,21 @@ impl Btree {
             };
             records.push(record);
         }
-        Ok(Btree { body, info, records })
+        let node = BtreeNode {
+            node: body, records
+        };
+        Ok(BtreeDecodedObject::BtreeRoot(node, info))
+    }
+
+    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+        let (root, info) = match Self::load_btree_node(apfs, oid, r#type)? {
+            BtreeDecodedObject::BtreeRoot(body, info) => (body, info),
+            _ => { unreachable!() },
+        };
+        Ok(Btree { info, root })
+    }
+
+    pub fn get_record(&self, key: OmapKey) -> io::Result<Record<OmapKey, OmapVal>> {
+        Err(io::Error::new(io::ErrorKind::Other, ""))
     }
 }
