@@ -10,6 +10,16 @@ fn main() {
         _ => { panic!("Wrong object type!"); },
     };
     println!("Container Superblock: {:#?}", superblock);
+    assert!(superblock.body.xp_desc_blocks & (1 << 31) == 0);
+    assert!(superblock.body.xp_data_blocks & (1 << 31) == 0);
+    for idx in 0..superblock.body.xp_desc_blocks {
+        let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64)).unwrap();
+        println!("Checkpoint descriptor object: {:#?}", object);
+    }
+    for idx in 0..superblock.body.xp_data_blocks {
+        let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
+        println!("Checkpoint data object: {:#?}", object);
+    }
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,

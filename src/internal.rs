@@ -1128,3 +1128,218 @@ impl WrappedMetaCryptoState  {
         })
     }
 }
+
+
+// Space Manager
+
+#[derive(Copy, Clone, Default, Debug)]
+struct SpacemanFreeQueue {
+    count: u64,
+    tree_oid: Oid,
+    oldest_xid: Xid,
+    tree_node_limit: u16,
+    pad16: u16,
+    pad32: u32,
+    reserved: u64,
+}
+
+impl SpacemanFreeQueue {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            count: source.read_u64::<LittleEndian>()?,
+            tree_oid: Oid::import(source)?,
+            oldest_xid: Xid::import(source)?,
+            tree_node_limit: source.read_u16::<LittleEndian>()?,
+            pad16: source.read_u16::<LittleEndian>()?,
+            pad32: source.read_u32::<LittleEndian>()?,
+            reserved: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+enum Sfq {
+    IP = 0,
+    MAIN = 1,
+    TIER2 = 2,
+    COUNT = 3,
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+struct SpacemanDevice {
+    block_count: u64,
+    chunk_count: u64,
+    cib_count: u32,
+    cab_count: u32,
+    free_count: u64,
+    addr_offset: u32,
+    reserved: u32,
+    reserved2: u64,
+}
+
+impl SpacemanDevice {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            block_count: source.read_u64::<LittleEndian>()?,
+            chunk_count: source.read_u64::<LittleEndian>()?,
+            cib_count: source.read_u32::<LittleEndian>()?,
+            cab_count: source.read_u32::<LittleEndian>()?,
+            free_count: source.read_u64::<LittleEndian>()?,
+            addr_offset: source.read_u32::<LittleEndian>()?,
+            reserved: source.read_u32::<LittleEndian>()?,
+            reserved2: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+enum Smdev {
+    MAIN = 0,
+    TIER2 = 1,
+    COUNT = 2,
+}
+
+#[derive(Copy, Clone, Default, Debug)]
+struct SpacemanAllocationZoneBoundaries {
+    zone_start: u64,
+    zone_end: u64,
+}
+
+impl SpacemanAllocationZoneBoundaries {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            zone_start: source.read_u64::<LittleEndian>()?,
+            zone_end: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+const SM_ALLOCZONE_INVALID_END_BOUNDARY: usize = 0;
+const SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES: usize = 7;
+
+#[derive(Copy, Clone, Default, Debug)]
+struct SpacemanAllocationZoneInfoPhys {
+    current_boundaries: SpacemanAllocationZoneBoundaries,
+    previous_boundaries: [SpacemanAllocationZoneBoundaries; SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES],
+    zone_id: u16,
+    previous_boundary_index: u16,
+    reserved: u32,
+}
+
+impl SpacemanAllocationZoneInfoPhys {
+    fn import_previous_boundaries(source: &mut dyn Read) -> io::Result<[SpacemanAllocationZoneBoundaries; SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES]> {
+        let mut values = [SpacemanAllocationZoneBoundaries::default(); SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES];
+        for entry in values.iter_mut() {
+            *entry = SpacemanAllocationZoneBoundaries::import(source)?;
+        }
+        Ok(values)
+    }
+
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            current_boundaries: SpacemanAllocationZoneBoundaries::import(source)?,
+            previous_boundaries: Self::import_previous_boundaries(source)?,
+            zone_id: source.read_u16::<LittleEndian>()?,
+            previous_boundary_index: source.read_u16::<LittleEndian>()?,
+            reserved: source.read_u32::<LittleEndian>()?,
+        })
+    }
+}
+
+const SM_DATAZONE_ALLOCZONE_COUNT: usize = 8;
+
+#[derive(Copy, Clone, Default, Debug)]
+struct SpacemanDatazoneInfoPhys {
+    allocation_zones: [[SpacemanAllocationZoneInfoPhys; SM_DATAZONE_ALLOCZONE_COUNT]; Smdev::COUNT as usize],
+}
+
+impl SpacemanDatazoneInfoPhys {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = SpacemanDatazoneInfoPhys::default();
+        for outer in 0..SM_DATAZONE_ALLOCZONE_COUNT {
+            for inner in 0..Smdev::COUNT as usize {
+                value.allocation_zones[inner][outer] = SpacemanAllocationZoneInfoPhys::import(source)?;
+            }
+        }
+        Ok(value)
+    }
+}
+
+bitflags! {
+    struct SpacemanFlags: u32 {
+        const VERSIONED = 0x00000001;
+    }
+}
+
+#[derive(Debug)]
+pub struct SpacemanPhys {
+    //sm_o: ObjPhys,
+    block_size: u32,
+    blocks_per_chunk: u32,
+    chunks_per_cib: u32,
+    cibs_per_cab: u32,
+    dev: [SpacemanDevice; Smdev::COUNT as usize],
+    flags: SpacemanFlags,
+    ip_bm_tx_multiplier: u32,
+    ip_block_count: u64,
+    ip_bm_size_in_blocks: u32,
+    ip_bm_block_count: u32,
+    ip_bm_base: Paddr,
+    ip_base: Paddr,
+    fs_reserve_block_count: u64,
+    fs_reserve_alloc_count: u64,
+    fq: [SpacemanFreeQueue; Sfq::COUNT as usize],
+    ip_bm_free_head: u16,
+    ip_bm_free_tail: u16,
+    ip_bm_xid_offset: u32,
+    ip_bitmap_offset: u32,
+    ip_bm_free_next_offset: u32,
+    version: u32,
+    struct_size: u32,
+    datazone: SpacemanDatazoneInfoPhys,
+}
+
+impl SpacemanPhys {
+    fn import_dev(source: &mut dyn Read) -> io::Result<[SpacemanDevice; Smdev::COUNT as usize]> {
+        let mut values = [SpacemanDevice::default(); Smdev::COUNT as usize];
+        for entry in values.iter_mut() {
+            *entry = SpacemanDevice::import(source)?;
+        }
+        Ok(values)
+    }
+
+    fn import_fq(source: &mut dyn Read) -> io::Result<[SpacemanFreeQueue; Sfq::COUNT as usize]> {
+        let mut values = [SpacemanFreeQueue::default(); Sfq::COUNT as usize];
+        for entry in values.iter_mut() {
+            *entry = SpacemanFreeQueue::import(source)?;
+        }
+        Ok(values)
+    }
+
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            block_size: source.read_u32::<LittleEndian>()?,
+            blocks_per_chunk: source.read_u32::<LittleEndian>()?,
+            chunks_per_cib: source.read_u32::<LittleEndian>()?,
+            cibs_per_cab: source.read_u32::<LittleEndian>()?,
+            dev: Self::import_dev(source)?,
+            flags: SpacemanFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            ip_bm_tx_multiplier: source.read_u32::<LittleEndian>()?,
+            ip_block_count: source.read_u64::<LittleEndian>()?,
+            ip_bm_size_in_blocks: source.read_u32::<LittleEndian>()?,
+            ip_bm_block_count: source.read_u32::<LittleEndian>()?,
+            ip_bm_base: Paddr::import(source)?,
+            ip_base: Paddr::import(source)?,
+            fs_reserve_block_count: source.read_u64::<LittleEndian>()?,
+            fs_reserve_alloc_count: source.read_u64::<LittleEndian>()?,
+            fq: Self::import_fq(source)?,
+            ip_bm_free_head: source.read_u16::<LittleEndian>()?,
+            ip_bm_free_tail: source.read_u16::<LittleEndian>()?,
+            ip_bm_xid_offset: source.read_u32::<LittleEndian>()?,
+            ip_bitmap_offset: source.read_u32::<LittleEndian>()?,
+            ip_bm_free_next_offset: source.read_u32::<LittleEndian>()?,
+            version: source.read_u32::<LittleEndian>()?,
+            struct_size: source.read_u32::<LittleEndian>()?,
+            datazone: SpacemanDatazoneInfoPhys::import(source)?,
+        })
+    }
+}

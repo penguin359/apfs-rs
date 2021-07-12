@@ -176,6 +176,18 @@ pub struct ApfsSuperblockObject {
 }
 
 #[derive(Debug)]
+pub struct SpacemanObject {
+    header: ObjPhys,
+    pub body: SpacemanPhys,
+}
+
+#[derive(Debug)]
+pub struct NxReaperObject {
+    header: ObjPhys,
+    //pub body: NxReaperPhys,
+}
+
+#[derive(Debug)]
 pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
@@ -183,6 +195,8 @@ pub enum APFSObject {
     Btree(BtreeNodeObject),
     BtreeNode(BtreeNodeObject),
     ApfsSuperblock(ApfsSuperblockObject),
+    Spaceman(SpacemanObject),
+    NxReaper(NxReaperObject),
 }
 
 pub struct APFS<S: Read + Seek> {
@@ -253,6 +267,16 @@ impl<S: Read + Seek> APFS<S> {
                 APFSObject::ApfsSuperblock(ApfsSuperblockObject {
                 header,
                 body: ApfsSuperblock::import(&mut cursor)?,
+            }),
+            ObjectType::Spaceman =>
+                APFSObject::Spaceman(SpacemanObject {
+                header,
+                body: SpacemanPhys::import(&mut cursor)?,
+            }),
+            ObjectType::NxReaper =>
+                APFSObject::NxReaper(NxReaperObject {
+                header,
+                /*body: SpacemanPhys::import(&mut cursor)?,*/
             }),
             _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", header.r#type.r#type()))); },
         };
