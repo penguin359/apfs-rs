@@ -19,6 +19,16 @@ typedef unsigned char uuid_t[16];
  * Objects
  */
 
+typedef uint64_t oid_t;
+typedef uint64_t xid_t;
+
+#define OID_NX_SUPERBLOCK 1
+
+#define OID_INVALID 0ULL
+#define OID_RESERVED_COUNT 1024
+
+#define MAX_CKSUM_SIZE 8
+
 struct obj_phys {
 uint8_t o_cksum[MAX_CKSUM_SIZE];
 	oid_t o_oid;
@@ -27,16 +37,6 @@ uint8_t o_cksum[MAX_CKSUM_SIZE];
 	uint32_t o_subtype;
 };
 typedef struct obj_phys obj_phys_t;
-
-#define MAX_CKSUM_SIZE 8
-
-typedef uint64_t oid_t;
-typedef uint64_t xid_t;
-
-#define OID_NX_SUPERBLOCK 1
-
-#define OID_INVALID 0ULL
-#define OID_RESERVED_COUNT 1024
 
 #define OBJECT_TYPE_MASK 0x0000ffff
 #define OBJECT_TYPE_FLAGS_MASK 0xffff0000
@@ -120,6 +120,22 @@ typedef struct nx_efi_jumpstart nx_efi_jumpstart_t;
  * Container
  */
 
+#define NX_MAGIC 'BSXN'
+#define NX_MAX_FILE_SYSTEMS 100
+
+#define NX_EPH_INFO_COUNT 4
+#define NX_EPH_MIN_BLOCK_COUNT 8
+#define NX_MAX_FILE_SYSTEM_EPH_STRUCTS 4
+#define NX_TX_MIN_CHECKPOINT_COUNT 4
+#define NX_EPH_INFO_VERSION_1 1
+
+typedef enum {
+	NX_CNTR_OBJ_CKSUM_SET = 0,
+	NX_CNTR_OBJ_CKSUM_FAIL = 1,
+
+	NX_NUM_COUNTERS = 32
+} nx_counter_id_t;
+
 struct nx_superblock {
 	obj_phys_t nx_o;
 	uint32_t nx_magic;
@@ -175,15 +191,6 @@ struct nx_superblock {
 };
 typedef struct nx_superblock nx_superblock_t;
 
-#define NX_MAGIC 'BSXN'
-#define NX_MAX_FILE_SYSTEMS 100
-
-#define NX_EPH_INFO_COUNT 4
-#define NX_EPH_MIN_BLOCK_COUNT 8
-#define NX_MAX_FILE_SYSTEM_EPH_STRUCTS 4
-#define NX_TX_MIN_CHECKPOINT_COUNT 4
-#define NX_EPH_INFO_VERSION_1 1
-
 #define NX_RESERVED_1 0x00000001LL
 #define NX_RESERVED_2 0x00000002LL
 #define NX_CRYPTO_SW 0x00000004LL
@@ -204,13 +211,6 @@ typedef struct nx_superblock nx_superblock_t;
 #define NX_MAXIMUM_BLOCK_SIZE 65536
 
 #define NX_MINIMUM_CONTAINER_SIZE 1048576
-
-typedef enum {
-	NX_CNTR_OBJ_CKSUM_SET = 0,
-	NX_CNTR_OBJ_CKSUM_FAIL = 1,
-
-	NX_NUM_COUNTERS = 32
-} nx_counter_id_t;
 
 struct checkpoint_mapping {
 	uint32_t cpm_type;
@@ -301,8 +301,44 @@ typedef struct omap_snapshot omap_snapshot_t;
 
 
 /**
+ * Encryption
+ * 
+ * Early definitions needed only
+ */
+
+typedef uint32_t cp_key_class_t;
+typedef uint32_t cp_key_os_version_t;
+typedef uint16_t cp_key_revision_t;
+typedef uint32_t crypto_flags_t;
+
+struct wrapped_meta_crypto_state {
+	uint16_t major_version;
+	uint16_t minor_version;
+	crypto_flags_t cpflags;
+	cp_key_class_t persistent_class;
+	cp_key_os_version_t key_os_version;
+	cp_key_revision_t key_revision;
+	uint16_t unused;
+} __attribute__((aligned(2), packed));
+typedef struct wrapped_meta_crypto_state wrapped_meta_crypto_state_t;
+
+
+/**
  * Volumes
  */
+
+#define APFS_MODIFIED_NAMELEN 32
+
+struct apfs_modified_by {
+	uint8_t id[APFS_MODIFIED_NAMELEN];
+	uint64_t timestamp;
+	xid_t last_xid;
+};
+typedef struct apfs_modified_by apfs_modified_by_t;
+
+#define APFS_MAGIC 'BSPA'
+#define APFS_MAX_HIST 8
+#define APFS_VOLNAME_LEN 256
 
 struct apfs_superblock {
 	obj_phys_t apfs_o;
@@ -376,19 +412,6 @@ struct apfs_superblock {
 	uint32_t reserved_type;
 	oid_t reserved_oid;
 };
-
-#define APFS_MAGIC 'BSPA'
-#define APFS_MAX_HIST 8
-#define APFS_VOLNAME_LEN 256
-
-struct apfs_modified_by {
-	uint8_t id[APFS_MODIFIED_NAMELEN];
-	uint64_t timestamp;
-	xid_t last_xid;
-};
-typedef struct apfs_modified_by apfs_modified_by_t;
-
-#define APFS_MODIFIED_NAMELEN 32
 
 #define APFS_FS_UNENCRYPTED 0x00000001LL
 #define APFS_FS_RESERVED_2 0x00000002LL
@@ -484,6 +507,32 @@ struct j_inode_key {
 } __attribute__((packed));
 typedef struct j_inode_key_t j_inode_key_t;
 
+typedef uint32_t uid_t;
+typedef uint32_t gid_t;
+
+typedef uint16_t mode_t;
+
+#define S_IFMT 0170000
+
+#define S_IFIFO 0010000
+#define S_IFCHR 0020000
+#define S_IFDIR 0040000
+#define S_IFBLK 0060000
+#define S_IFREG 0100000
+#define S_IFLNK 0120000
+#define S_IFSOCK 0140000
+#define S_IFWHT 0160000
+
+#define DT_UNKNOWN 0
+#define DT_FIFO 1
+#define DT_CHR 2
+#define DT_DIR 4
+#define DT_BLK 6
+#define DT_REG 8
+#define DT_LNK 10
+#define DT_SOCK 12
+#define DT_WHT 14
+
 struct j_inode_val {
 	uint64_t parent_id;
 	uint64_t private_id;
@@ -511,9 +560,6 @@ struct j_inode_val {
 	uint8_t xfields[];
 } __attribute__((packed));
 typedef struct j_inode_val j_inode_val_t;
-
-typedef uint32_t uid_t;
-typedef uint32_t gid_t;
 
 struct j_drec_key {
 	j_key_t hdr;
@@ -705,29 +751,6 @@ typedef enum {
 
 #define FEXT_CRYPTO_ID_IS_TWEAK 0x01
 
-typedef uint16_t mode_t;
-
-#define S_IFMT 0170000
-
-#define S_IFIFO 0010000
-#define S_IFCHR 0020000
-#define S_IFDIR 0040000
-#define S_IFBLK 0060000
-#define S_IFREG 0100000
-#define S_IFLNK 0120000
-#define S_IFSOCK 0140000
-#define S_IFWHT 0160000
-
-#define DT_UNKNOWN 0
-#define DT_FIFO 1
-#define DT_CHR 2
-#define DT_DIR 4
-#define DT_BLK 6
-#define DT_REG 8
-#define DT_LNK 10
-#define DT_SOCK 12
-#define DT_WHT 14
-
 /**
  * Data Streams
  */
@@ -775,12 +798,6 @@ struct j_dstream_id_val {
 } __attribute__((packed));
 typedef struct j_dstream_id_val j_dstream_id_val_t;
 
-struct j_xattr_dstream {
-	uint64_t xattr_obj_id;
-	j_dstream_t dstream;
-};
-typedef struct j_xattr_dstream j_xattr_dstream_t;
-
 struct j_dstream {
 	uint64_t size;
 	uint64_t alloced_size;
@@ -789,6 +806,12 @@ struct j_dstream {
 	uint64_t total_bytes_read;
 } __attribute__((aligned(8),packed));
 typedef struct j_dstream j_dstream_t;
+
+struct j_xattr_dstream {
+	uint64_t xattr_obj_id;
+	j_dstream_t dstream;
+};
+typedef struct j_xattr_dstream j_xattr_dstream_t;
 
 
 /**
@@ -905,13 +928,7 @@ typedef enum {
 	SNAP_META_MERGE_IN_PROGRESS = 0x00000002,
 } snap_meta_flags;
 
-struct snap_meta_ext_obj_phys {
-	obj_phys_t smeop_o;
-	snap_meta_ext_t smeop_sme;
-}
-typedef struct snap_meta_ext_obj_phys_t;
-
-typedef struct snap_meta_ext {
+struct snap_meta_ext {
 	uint32_t sme_version;
 
 	uint32_t sme_flags;
@@ -919,13 +936,25 @@ typedef struct snap_meta_ext {
 	uuid_t sme_uuid;
 
 	uint64_t sme_token;
-} __attribute__((packed))
+} __attribute__((packed));
 typedef struct snap_meta_ext snap_meta_ext_t;
+
+struct snap_meta_ext_obj_phys {
+	obj_phys_t smeop_o;
+	snap_meta_ext_t smeop_sme;
+};
+typedef struct snap_meta_ext_obj_phys snap_meta_ext_obj_phys_t;
 
 
 /**
  * B-Trees
  */
+
+struct nloc {
+	uint16_t off;
+	uint16_t len;
+};
+typedef struct nloc nloc_t;
 
 struct btree_node_phys {
 	obj_phys_t btn_o;
@@ -957,19 +986,13 @@ struct btree_info {
 };
 typedef struct btree_info btree_info_t;
 
+#define BTREE_NODE_HASH_SIZE_MAX 64
+
 struct btn_index_node_val {
 	oid_t binv_child_oid;
 	uint8_t binv_child_hash[BTREE_NODE_HASH_SIZE_MAX];
 };
 typedef struct btn_index_node_val btn_index_node_val_t;
-
-#define BTREE_NODE_HASH_SIZE_MAX 64
-
-struct nloc {
-	uint16_t off;
-	uint16_t len;
-};
-typedef struct nloc nloc_t;
 
 #define BTOFF_INVALID 0xffff
 
@@ -1020,12 +1043,6 @@ struct j_crypto_key {
 } __attribute__((packed));
 typedef struct j_crypto_key j_crypto_key_t;
 
-struct j_crypto_val {
-	uint32_t refcnt;
-	wrapped_crypto_state_t state;
-} __attribute__((aligned(4),packed));
-typedef struct j_crypto_val j_crypto_val_t;
-
 struct wrapped_crypto_state {
 	uint16_t major_version;
 	uint16_t minor_version;
@@ -1038,23 +1055,13 @@ struct wrapped_crypto_state {
 } __attribute__((aligned(2), packed));
 typedef struct wrapped_crypto_state wrapped_crypto_state_t;
 
+struct j_crypto_val {
+	uint32_t refcnt;
+	wrapped_crypto_state_t state;
+} __attribute__((aligned(4),packed));
+typedef struct j_crypto_val j_crypto_val_t;
+
 #define CP_MAX_WRAPPEDKEYSIZE 128
-
-struct wrapped_meta_crypto_state {
-	uint16_t major_version;
-	uint16_t minor_version;
-	crypto_flags_t cpflags;
-	cp_key_class_t persistent_class;
-	cp_key_os_version_t key_os_version;
-	cp_key_revision_t key_revision;
-	uint16_t unused;
-} __attribute__((aligned(2), packed));
-typedef struct wrapped_meta_crypto_state wrapped_meta_crypto_state_t;
-
-typedef uint32_t cp_key_class_t;
-typedef uint32_t cp_key_os_version_t;
-typedef uint16_t cp_key_revision_t;
-typedef uint32_t crypto_flags_t;
 
 #define PROTECTION_CLASS_DIR_NONE 0
 #define PROTECTION_CLASS_A 1
@@ -1071,6 +1078,15 @@ typedef uint32_t crypto_flags_t;
 
 #define APFS_UNASSIGNED_CRYPTO_ID (~0ULL)
 
+struct keybag_entry {
+	uuid_t ke_uuid;
+	uint16_t ke_tag;
+	uint16_t ke_keylen;
+	uint8_t padding[4];
+	uint8_t ke_keydata[];
+};
+typedef struct keybag_entry keybag_entry_t;
+
 struct kb_locker {
 	uint16_t kl_version;
 	uint16_t kl_nkeys;
@@ -1081,15 +1097,6 @@ struct kb_locker {
 typedef struct kb_locker kb_locker_t;
 
 #define APFS_KEYBAG_VERSION 2
-
-struct keybag_entry {
-	uuid_t ke_uuid;
-	uint16_t ke_tag;
-	uint16_t ke_keylen;
-	uint8_t padding[4];
-	uint8_t ke_keydata[];
-};
-typedef struct keybag_entry keybag_entry_t;
 
 #define APFS_VOL_KEYBAG_ENTRY_MAX_SIZE 512
 #define APFS_FV_PERSONAL_RECOVERY_KEY_UUID "EBC6C064-0000-11AA-AA11-00306543ECAC"
@@ -1116,6 +1123,19 @@ enum {
  * Sealed Volumes
  */
 
+typedef enum {
+	APFS_HASH_INVALID = 0,
+	APFS_HASH_SHA256 = 0x1,
+	APFS_HASH_SHA512_256 = 0x2,
+	APFS_HASH_SHA384 = 0x3,
+	APFS_HASH_SHA512 = 0x4,
+
+	APFS_HASH_MIN = APFS_HASH_SHA256,
+	APFS_HASH_MAX = APFS_HASH_SHA512,
+
+	APFS_HASH_DEFAULT = APFS_HASH_SHA256,
+} apfs_hash_type_t;
+
 struct integrity_meta_phys {
 	obj_phys_t im_o;
 	uint32_t im_version;
@@ -1135,19 +1155,6 @@ enum {
 };
 
 #define APFS_SEAL_BROKEN (1U << 0)
-
-typedef enum {
-	APFS_HASH_INVALID = 0,
-	APFS_HASH_SHA256 = 0x1,
-	APFS_HASH_SHA512_256 = 0x2,
-	APFS_HASH_SHA384 = 0x3,
-	APFS_HASH_SHA512 = 0x4,
-
-	APFS_HASH_MIN = APFS_HASH_SHA256,
-	APFS_HASH_MAX = APFS_HASH_SHA512,
-
-	APFS_HASH_DEFAULT = APFS_HASH_SHA256,
-} apfs_hash_type_t;
 
 #define APFS_HASH_CCSHA256_SIZE 32
 #define APFS_HASH_CCSHA512_256_SIZE 32
@@ -1178,6 +1185,13 @@ typedef struct j_key_t j_file_info_key_t;
 #define J_FILE_INFO_TYPE_MASK 0xff00000000000000ULL
 #define J_FILE_INFO_TYPE_SHIFT 56
 
+struct j_file_data_hash_val {
+	uint16_t hashed_len;
+	uint8_t hash_size;
+	uint8_t hash[0];
+} __attribute__((packed));
+typedef struct j_file_data_hash_val j_file_data_hash_val_t;
+
 struct j_file_info_val {
 	union {
 		j_file_data_hash_val_t dhash;
@@ -1188,13 +1202,6 @@ typedef struct j_file_data_hash_val_t j_file_info_val_t;
 typedef enum {
 	APFS_FILE_INFO_DATA_HASH = 1,
 } j_obj_file_info_type;
-
-struct j_file_data_hash_val {
-	uint16_t hashed_len;
-	uint8_t hash_size;
-	uint8_t hash[0];
-} __attribute__((packed));
-typedef struct j_file_data_hash_val j_file_data_hash_val_t;
 
 
 /**
@@ -1226,12 +1233,6 @@ struct cib_addr_block {
 };
 typedef struct cib_addr_block cib_addr_block_t;
 
-struct spaceman_free_queue_entry {
-	spaceman_free_queue_key_t sfqe_key;
-	spaceman_free_queue_val_t sfqe_count;
-};
-typedef struct spaceman_free_queue_entry spaceman_free_queue_entry_t;
-
 typedef uint64_t spaceman_free_queue_val_t;
 
 struct spaceman_free_queue_key {
@@ -1239,6 +1240,12 @@ struct spaceman_free_queue_key {
 	paddr_t sfqk_paddr;
 };
 typedef struct spaceman_free_queue_key spaceman_free_queue_key_t;
+
+struct spaceman_free_queue_entry {
+	spaceman_free_queue_key_t sfqe_key;
+	spaceman_free_queue_val_t sfqe_count;
+};
+typedef struct spaceman_free_queue_entry spaceman_free_queue_entry_t;
 
 struct spaceman_free_queue {
 	uint64_t sfq_count;
@@ -1268,7 +1275,10 @@ struct spaceman_allocation_zone_boundaries {
 	uint64_t saz_zone_end;
 };
 typedef struct spaceman_allocation_zone_boundaries
-	spaceman_allocation_zone_boundaries_t
+	spaceman_allocation_zone_boundaries_t;
+
+#define SM_ALLOCZONE_INVALID_END_BOUNDARY 0
+#define SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES 7
 
 struct spaceman_allocation_zone_info_phys {
 	spaceman_allocation_zone_boundaries_t saz_current_boundaries;
@@ -1281,8 +1291,13 @@ struct spaceman_allocation_zone_info_phys {
 typedef struct spaceman_allocation_zone_info_phys
 	spaceman_allocation_zone_info_phys_t;
 
-#define SM_ALLOCZONE_INVALID_END_BOUNDARY 0
-#define SM_ALLOCZONE_NUM_PREVIOUS_BOUNDARIES 7
+enum smdev {
+	SD_MAIN = 0,
+	SD_TIER2 = 1,
+	SD_COUNT = 2
+};
+
+#define SM_DATAZONE_ALLOCZONE_COUNT 8
 
 struct spaceman_datazone_info_phys {
 	spaceman_allocation_zone_info_phys_t
@@ -1290,7 +1305,12 @@ struct spaceman_datazone_info_phys {
 };
 typedef struct spaceman_datazone_info_phys spaceman_datazone_info_phys_t;
 
-#define SM_DATAZONE_ALLOCZONE_COUNT 8
+enum sfq {
+	SFQ_IP = 0,
+	SFQ_MAIN = 1,
+	SFQ_TIER2 = 2,
+	SFQ_COUNT = 3
+};
 
 struct spaceman_phys {
 	obj_phys_t sm_o;
@@ -1321,19 +1341,6 @@ struct spaceman_phys {
 typedef struct spaceman_phys spaceman_phys_t;
 
 #define SM_FLAG_VERSIONED 0x00000001
-
-enum sfq {
-	SFQ_IP = 0,
-	SFQ_MAIN = 1,
-	SFQ_TIER2 = 2,
-	SFQ_COUNT = 3
-};
-
-enum smdev {
-	SD_MAIN = 0,
-	SD_TIER2 = 1,
-	SD_COUNT = 2
-};
 
 #define CI_COUNT_MASK 0x000fffff
 #define CI_COUNT_RESERVED_MASK 0xfff00000
@@ -1366,6 +1373,17 @@ obj_phys_t nr_o;
 };
 typedef struct nx_reaper_phys nx_reaper_phys_t;
 
+struct nx_reap_list_entry {
+	uint32_t nrle_next;
+	uint32_t nrle_flags;
+	uint32_t nrle_type;
+	uint32_t nrle_size;
+	oid_t nrle_fs_oid;
+	oid_t nrle_oid;
+	xid_t nrle_xid;
+};
+typedef struct nx_reap_list_entry nx_reap_list_entry_t;
+
 struct nx_reap_list_phys {
 	obj_phys_t nrl_o;
 	oid_t nrl_next;
@@ -1378,17 +1396,6 @@ struct nx_reap_list_phys {
 	nx_reap_list_entry_t nrl_entries[];
 };
 typedef struct nx_reap_list_phys nx_reap_list_phys_t;
-
-struct nx_reap_list_entry {
-	uint32_t nrle_next;
-	uint32_t nrle_flags;
-	uint32_t nrle_type;
-	uint32_t nrle_size;
-	oid_t nrle_fs_oid;
-	oid_t nrle_oid;
-	xid_t nrle_xid;
-};
-typedef struct nx_reap_list_entry nx_reap_list_entry_t;
 
 enum {
 	APFS_REAP_PHASE_START = 0,
@@ -1437,6 +1444,13 @@ typedef struct apfs_reap_state apfs_reap_state_t;
  * Encryption Rolling
  */
 
+struct er_state_phys_header {
+	obj_phys_t ersb_o;
+	uint32_t ersb_magic;
+	uint32_t ersb_version;
+};
+typedef struct er_state_phys_header er_state_phys_header_t;
+
 struct er_state_phys {
 	er_state_phys_header_t ersb_header;
 	uint64_t ersb_flags;
@@ -1471,13 +1485,6 @@ struct er_state_phys_v1 {
 };
 typedef struct er_state_phys er_state_phys_v1_t;
 
-struct er_state_phys_header {
-	obj_phys_t ersb_o;
-	uint32_t ersb_magic;
-	uint32_t ersb_version;
-};
-typedef struct er_state_phys_header er_state_phys_header_t;
-
 enum er_phase_enum {
 	ER_PHASE_OMAP_ROLL = 1,
 	ER_PHASE_DATA_ROLL = 2,
@@ -1505,7 +1512,7 @@ struct gbitmap_phys {
 	uint64_t bm_bit_count;
 	uint64_t bm_flags;
 };
-typedef struct gbitmap_phys gbitmap_phys_t
+typedef struct gbitmap_phys gbitmap_phys_t;
 
 enum {
 	ER_512B_BLOCKSIZE = 0,
