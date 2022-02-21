@@ -74,7 +74,7 @@ pub struct ObjPhys {
     oid: Oid,
     xid: Xid,
     pub r#type: ObjectTypeAndFlags,
-    subtype: ObjectTypeAndFlags,
+    pub subtype: ObjectTypeAndFlags,
 }
 
 impl ObjPhys {
@@ -105,16 +105,16 @@ const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 #[repr(u32)]
 #[derive(Debug, PartialEq, FromPrimitive)]
 pub enum ObjectType {
-    NxSuperblock         = 0x00000001,
+    NxSuperblock          = 0x00000001,
 
     Btree                 = 0x00000002,
-    BtreeNode            = 0x00000003,
+    BtreeNode             = 0x00000003,
 
     Spaceman              = 0x00000005,
-    SpacemanCab          = 0x00000006,
-    SpacemanCib          = 0x00000007,
-    SpacemanBitmap       = 0x00000008,
-    SpacemanFreeQueue   = 0x00000009,
+    SpacemanCab           = 0x00000006,
+    SpacemanCib           = 0x00000007,
+    SpacemanBitmap        = 0x00000008,
+    SpacemanFreeQueue     = 0x00000009,
 
     ExtentListTree      = 0x0000000a,
     Omap                  = 0x0000000b,
@@ -929,7 +929,7 @@ const BTREE_TOC_ENTRY_MAX_UNUSED: usize = (2 * BTREE_TOC_ENTRY_INCREMENT);
 const BTREE_NODE_SIZE_DEFAULT: usize = 4096;
 const BTREE_NODE_MIN_ENTRY_COUNT: usize = 4;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Nloc {
     pub off: u16,
     pub len: u16,
@@ -946,8 +946,8 @@ impl Nloc {
     }
 }
 
-#[derive(Debug)]
-struct KVloc {
+#[derive(Copy, Clone, Debug)]
+pub struct KVloc {
     pub k: Nloc,
     pub v: Nloc,
 }
@@ -1099,19 +1099,19 @@ impl BtnIndexNodeVal {
 // Encryption
 
 // These types for encrytion are unfinished, but needed to skip over in Volume superblock
-type cp_key_class_t = u32;
-type cp_key_os_version_t = u32;
-type cp_key_revision_t = u16;
-type crypto_flags_t = u32;
+type CpKeyClass = u32;
+type CpKeyOsVersion = u32;
+type CpKeyRevision = u16;
+type CryptoFlags = u32;
 
 #[derive(Debug)]
 struct WrappedMetaCryptoState {
     major_version: u16,
     minor_version: u16,
-    cpflags: crypto_flags_t,
-    persistent_class: cp_key_class_t,
-    key_os_version: cp_key_os_version_t,
-    key_revision: cp_key_revision_t,
+    cpflags: CryptoFlags,
+    persistent_class: CpKeyClass,
+    key_os_version: CpKeyOsVersion,
+    key_revision: CpKeyRevision,
     unused: u16,
 }
 
@@ -1340,6 +1340,56 @@ impl SpacemanPhys {
             version: source.read_u32::<LittleEndian>()?,
             struct_size: source.read_u32::<LittleEndian>()?,
             datazone: SpacemanDatazoneInfoPhys::import(source)?,
+        })
+    }
+}
+
+
+// File-System Constants
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+pub enum JObjTypes {
+    Any = 0,
+
+    SnapMetadata = 1,
+    Extent = 2,
+    Inode = 3,
+    Xattr = 4,
+    SiblingLink = 5,
+    DstreamId = 6,
+    CryptoState = 7,
+    FileExtent = 8,
+    DirRec = 9,
+    DirStats = 10,
+    SnapName = 11,
+    SiblingMap = 12,
+    FileInfo = 13,
+
+    Invalid = 15,
+}
+    // MAX_VALID = 13,
+    // MAX = 15,
+
+
+
+// File-System Objects
+
+const OBJ_ID_MASK                       : u64 = 0x0fffffffffffffff;
+pub const OBJ_TYPE_MASK                     : u64 = 0xf000000000000000;
+pub const OBJ_TYPE_SHIFT                    : usize = 60;
+
+const SYSTEM_OBJ_ID_MARK                : u64 = 0x0fffffff00000000;
+
+#[derive(Debug)]
+pub struct JKey {
+    pub obj_id_and_type: u64,
+}
+
+impl JKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            obj_id_and_type: source.read_u64::<LittleEndian>()?,
         })
     }
 }

@@ -46,7 +46,7 @@ mod tests {
         assert_eq!(header.r#type.storage(), StorageType::Ephemeral, "type");
     }
 
-    
+
     #[test]
     #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn test_load_block0_16k() {
@@ -61,7 +61,7 @@ mod tests {
         assert_eq!(header.r#type.r#type(), ObjectType::NxSuperblock, "type");
         assert_eq!(header.r#type.storage(), StorageType::Ephemeral, "type");
     }
-    
+
 
     #[test]
     fn test_load_nonexistent_block() {
@@ -165,8 +165,8 @@ pub struct ObjectMapObject {
 
 #[derive(Debug)]
 pub struct BtreeNodeObject {
-    header: ObjPhys,
-    body: BtreeNodePhys,
+    pub header: ObjPhys,
+    pub body: BtreeNodePhys,
 }
 
 #[derive(Debug)]

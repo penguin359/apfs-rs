@@ -26,6 +26,9 @@ fn main() {
         _ => { panic!("Wrong object type!"); },
     };
     let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
+    if btree_result.is_err() {
+        println!("Error: {:?}", btree_result.as_ref().err());
+    }
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
     println!("Superblock Object Map B-Tree: {:#?}", btree);
@@ -46,11 +49,14 @@ fn main() {
         let btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
         for record in btree.root.records {
-            let object = apfs.load_object_addr(record.value.paddr).unwrap();
-            // let root_tree_result = apfs.load_btree(Oid(record.value.paddr.0 as u64), StorageType::Physical);
-            // assert!(root_tree_result.is_ok(), "Bad b-tree load");
-            // let root_tree = root_tree_result.unwrap();
-            // println!("Volume Root B-Tree: {:#?}", root_tree);
+            // let object = apfs.load_object_addr(record.value.paddr).unwrap();
+            let root_tree_result = apfs.load_btree(Oid(record.value.paddr.0 as u64), StorageType::Physical);
+            if root_tree_result.is_err() {
+                println!("Error: {:?}", root_tree_result.as_ref().err());
+            }
+            assert!(root_tree_result.is_ok(), "Bad b-tree load");
+            let root_tree = root_tree_result.unwrap();
+            println!("Volume Root B-Tree: {:#?}", root_tree);
         }
 
         // let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);

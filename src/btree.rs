@@ -2,15 +2,20 @@ use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::io::Cursor;
+use std::ops::RangeBounds;
 
+use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
+use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, OBJ_TYPE_MASK, OBJ_TYPE_SHIFT};
+use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
 use crate::internal::{BtnFlags, OmapKey};
 use crate::internal::OmapVal;
 use crate::internal::OvFlags;
 use crate::internal::BtreeInfo;
+use crate::internal::JKey;
 
 use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
@@ -57,7 +62,7 @@ impl Key for OmapKey {
 }
 
 #[derive(Debug)]
-pub struct Record<K, V> 
+pub struct Record<K, V>
     where K: Key {
     pub key: K,
     pub value: V,
@@ -319,6 +324,16 @@ impl Btree {
             BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
             _ => { unreachable!() },
         };
+        if body.header.subtype.r#type() != ObjectType::Omap &&
+           body.header.subtype.r#type() != ObjectType::Fstree {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree type"));
+        }
+        // if !body.body.flags.contains(BtnFlags::FIXED_KV_SIZE) {
+        //     return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree flag combination"));
+        // }
+        if !body.body.flags.contains(BtnFlags::LEAF) {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree node"));
+        }
         let info = info.unwrap();
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
         let mut cursor = Cursor::new(toc);
@@ -326,18 +341,53 @@ impl Btree {
         assert!(body.body.flags.contains(BtnFlags::LEAF));
         let mut records = vec![];
         for _ in 0..body.body.nkeys {
-            items.push(KVoff::import(&mut cursor)?);
-            let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k) as usize..(body.body.table_space.off+body.body.table_space.len+items.last().unwrap().k + info.fixed.key_size as u16) as usize];
-            let mut c2 = Cursor::new(key_data);
-            let key = OmapKey::import(&mut c2)?;
-            let val_data = &body.body.data[(body.body.data.len() as u16 - items.last().unwrap().v) as usize..(body.body.data.len() as u16 -  items.last().unwrap().v + info.fixed.val_size as u16) as usize];
-            let mut c2 = Cursor::new(val_data);
-            let val = OmapVal::import(&mut c2)?;
-            let record = Record {
-                key,
-                value: val,
+            let kvloc = if(body.body.flags.contains(BtnFlags::FIXED_KV_SIZE)) {
+                let kvoff = KVoff::import(&mut cursor)?;
+                KVloc {
+                    k: Nloc {
+                        off: kvoff.k,
+                        len: info.fixed.key_size as u16,
+                    },
+                    v: Nloc {
+                        off: kvoff.v,
+                        len: info.fixed.key_size as u16,
+                    },
+                }
+            } else {
+                KVloc::import(&mut cursor)?
             };
-            records.push(record);
+            items.push(kvloc);
+            let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+kvloc.k.off) as usize..(body.body.table_space.off+body.body.table_space.len+kvloc.k.off + kvloc.k.len) as usize];
+            let val_data = &body.body.data[(body.body.data.len() as u16 - kvloc.v.off) as usize..(body.body.data.len() as u16 -  kvloc.v.off + kvloc.v.len) as usize];
+            let mut key_cursor = Cursor::new(key_data);
+            let mut value_cursor = Cursor::new(val_data);
+            if body.header.subtype.r#type() == ObjectType::Omap  {
+                let key = OmapKey::import(&mut key_cursor)?;
+                let val = OmapVal::import(&mut value_cursor)?;
+                let record = Record {
+                    key,
+                    value: val,
+                };
+                records.push(record);
+            } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
+                let key = JKey::import(&mut key_cursor)?;
+                let key_type = JObjTypes::from_u8(((key.obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT) as u8).unwrap();
+                println!("Key type: {:?}", key_type);
+                if key_type == JObjTypes::DirRec {
+                    let name_len = key_cursor.read_u32::<LittleEndian>().unwrap();
+                    println!("Key length: {}", name_len & 0x3ff);
+                    // println!("Key: {:?}", &key_data);
+                    let mut name = vec![0u8; (name_len & 0x3ff) as usize];
+                    key_cursor.read_exact(&mut name).unwrap();
+                    println!("Key name: {:?}", String::from_utf8(name).unwrap());
+                    // println!("Key name: {:?}", String::from_utf8_lossy(&name));
+                    // let mut name = vec![];
+                    // for _ in 0..(name_len& 0x3ff)/2 {
+                    //     name.push(key_cursor.read_u16::<BigEndian>().unwrap());
+                    // }
+                    // println!("Key name: {:?}", String::from_utf16(&name).unwrap());
+                }
+            }
         }
         let node = BtreeNode {
             node: body, records
