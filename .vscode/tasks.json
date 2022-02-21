@@ -7,10 +7,7 @@
 			"problemMatcher": [
 				"$rustc"
 			],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
+			"group": "build",
 			"label": "rust: cargo test"
 		},
 		{
@@ -20,7 +17,20 @@
 				"$rustc"
 			],
 			"group": "build",
+			"label": "rust: old cargo check"
+		},
+		{
+			"type": "shell",
+			"command": "cargo",
+			"args": ["check"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"label": "rust: cargo check"
-		}
+		},
 	]
 }
