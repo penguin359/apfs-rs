@@ -1773,3 +1773,62 @@ impl JXattrDstream {
         })
     }
 }
+
+
+// Siblings
+
+#[derive(Debug)]
+pub struct JSiblingKey {
+	//hdr: JKey,
+	sibling_id: u64,
+}
+
+impl JSiblingKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            sibling_id: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JSiblingVal {
+	parent_id: u64,
+	name_len: u16,
+	name: Vec<u8>,
+}
+
+impl JSiblingVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            parent_id: source.read_u64::<LittleEndian>()?,
+            name_len: source.read_u16::<LittleEndian>()?,
+            name: vec![],
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JSiblingMapKey {
+	//hdr: JKey,
+}
+
+impl JSiblingMapKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JSiblingMapVal {
+	file_id: u64,
+}
+
+impl JSiblingMapVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            file_id: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}

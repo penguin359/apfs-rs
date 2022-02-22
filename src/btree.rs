@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -393,6 +393,14 @@ impl Btree {
                     JObjTypes::DstreamId => {
                         println!("DstreamId key: {:?}", JDstreamIdKey::import(&mut key_cursor).unwrap());
                         println!("DstreamId: {:?}", JDstreamIdVal::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::SiblingLink => {
+                        println!("SiblingLink key: {:?}", JSiblingKey::import(&mut key_cursor).unwrap());
+                        println!("SiblingLink: {:?}", JSiblingKey::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::SiblingMap => {
+                        println!("SiblingMap key: {:?}", JSiblingMapKey::import(&mut key_cursor).unwrap());
+                        println!("SiblingMap: {:?}", JSiblingMapVal::import(&mut value_cursor).unwrap());
                     },
                     _ => {
                         println!("Unsupported key type: {:?}!", key_type);
