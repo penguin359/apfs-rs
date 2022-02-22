@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -385,6 +385,14 @@ impl Btree {
                     JObjTypes::Xattr => {
                         println!("Xattr key: {:?}", JXattrKey::import(&mut key_cursor).unwrap());
                         println!("Xattr: {:?}", JXattrVal::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::FileExtent => {
+                        println!("FileExtent key: {:?}", JFileExtentKey::import(&mut key_cursor).unwrap());
+                        println!("FileExtent: {:?}", JFileExtentVal::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::DstreamId => {
+                        println!("DstreamId key: {:?}", JDstreamIdKey::import(&mut key_cursor).unwrap());
+                        println!("DstreamId: {:?}", JDstreamIdVal::import(&mut value_cursor).unwrap());
                     },
                     _ => {
                         println!("Unsupported key type: {:?}!", key_type);

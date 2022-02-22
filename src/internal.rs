@@ -1641,3 +1641,135 @@ impl JXattrVal {
         })
     }
 }
+
+
+// Data Streams
+
+#[derive(Debug)]
+struct JPhysExtKey {
+	//hdr: JKey,
+}
+
+impl JPhysExtKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+const PEXT_LEN_MASK : u64 = 0x0fffffffffffffff;
+const PEXT_KIND_MASK : u64 = 0xf000000000000000;
+const PEXT_KIND_SHIFT : usize = 60;
+
+#[derive(Debug)]
+struct JPhysExtVal {
+	len_and_kind: u64,
+	owning_obj_id: u64,
+	refcnt: i32,
+}
+
+impl JPhysExtVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            len_and_kind: source.read_u64::<LittleEndian>()?,
+            owning_obj_id: source.read_u64::<LittleEndian>()?,
+            refcnt: source.read_i32::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JFileExtentKey {
+	//hdr: JKey,
+	logical_addr: u64,
+}
+
+impl JFileExtentKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            logical_addr: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+const J_FILE_EXTENT_LEN_MASK : u64 = 0x00ffffffffffffff;
+const J_FILE_EXTENT_FLAG_MASK : u64 = 0xff00000000000000;
+const J_FILE_EXTENT_FLAG_SHIFT : usize = 56;
+
+#[derive(Debug)]
+pub struct JFileExtentVal {
+	len_and_flags: u64,
+	phys_block_num: u64,
+	crypto_id: u64,
+}
+
+impl JFileExtentVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            len_and_flags: source.read_u64::<LittleEndian>()?,
+            phys_block_num: source.read_u64::<LittleEndian>()?,
+            crypto_id: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JDstreamIdKey {
+	//hdr: JKey,
+}
+
+impl JDstreamIdKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JDstreamIdVal {
+	refcnt: u32,
+}
+
+impl JDstreamIdVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            refcnt: source.read_u32::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JDstream {
+	size: u64,
+	alloced_size: u64,
+	default_crypto_id: u64,
+	total_bytes_written: u64,
+	total_bytes_read: u64,
+}
+
+impl JDstream {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            size: source.read_u64::<LittleEndian>()?,
+            alloced_size: source.read_u64::<LittleEndian>()?,
+            default_crypto_id: source.read_u64::<LittleEndian>()?,
+            total_bytes_written: source.read_u64::<LittleEndian>()?,
+            total_bytes_read: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JXattrDstream {
+	xattr_obj_id: u64,
+	dstream: JDstream,
+}
+
+impl JXattrDstream {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            xattr_obj_id: source.read_u64::<LittleEndian>()?,
+            dstream: JDstream::import(source)?,
+        })
+    }
+}
