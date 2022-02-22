@@ -1486,13 +1486,13 @@ pub struct JInodeVal {
     group: Gid,
     mode: Mode,
     pad1: u16,
-    uncompressed_size: u64,
-    xfields: Vec<u8>,
+    pub uncompressed_size: u64,
+    pub xfields: Vec<u8>,
 }
 
 impl JInodeVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
-        Ok(Self {
+        let mut value = Self {
             parent_id: source.read_u64::<LittleEndian>()?,
             private_id: source.read_u64::<LittleEndian>()?,
 
@@ -1514,7 +1514,9 @@ impl JInodeVal {
             pad1: source.read_u16::<LittleEndian>()?,
             uncompressed_size: source.read_u64::<LittleEndian>()?,
             xfields: vec![],
-        })
+        };
+        source.read_to_end(&mut value.xfields)?;
+        Ok(value)
     }
 }
 
@@ -1569,17 +1571,19 @@ pub struct JDrecVal {
     file_id: u64,
     date_added: u64,
     flags: u16,
-    xfields: Vec<u8>,
+    pub xfields: Vec<u8>,
 }
 
 impl JDrecVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
-        Ok(Self {
+        let mut value = Self {
             file_id: source.read_u64::<LittleEndian>()?,
             date_added: source.read_u64::<LittleEndian>()?,
             flags: source.read_u16::<LittleEndian>()?,
             xfields: vec![],
-        })
+        };
+        source.read_to_end(&mut value.xfields)?;
+        Ok(value)
     }
 }
 
@@ -1647,7 +1651,7 @@ impl JXattrVal {
 
 #[derive(Debug)]
 struct JPhysExtKey {
-	//hdr: JKey,
+    //hdr: JKey,
 }
 
 impl JPhysExtKey {
@@ -1663,9 +1667,9 @@ const PEXT_KIND_SHIFT : usize = 60;
 
 #[derive(Debug)]
 struct JPhysExtVal {
-	len_and_kind: u64,
-	owning_obj_id: u64,
-	refcnt: i32,
+    len_and_kind: u64,
+    owning_obj_id: u64,
+    refcnt: i32,
 }
 
 impl JPhysExtVal {
@@ -1680,8 +1684,8 @@ impl JPhysExtVal {
 
 #[derive(Debug)]
 pub struct JFileExtentKey {
-	//hdr: JKey,
-	logical_addr: u64,
+    //hdr: JKey,
+    logical_addr: u64,
 }
 
 impl JFileExtentKey {
@@ -1698,9 +1702,9 @@ const J_FILE_EXTENT_FLAG_SHIFT : usize = 56;
 
 #[derive(Debug)]
 pub struct JFileExtentVal {
-	len_and_flags: u64,
-	phys_block_num: u64,
-	crypto_id: u64,
+    len_and_flags: u64,
+    pub phys_block_num: u64,
+    crypto_id: u64,
 }
 
 impl JFileExtentVal {
@@ -1715,7 +1719,7 @@ impl JFileExtentVal {
 
 #[derive(Debug)]
 pub struct JDstreamIdKey {
-	//hdr: JKey,
+    //hdr: JKey,
 }
 
 impl JDstreamIdKey {
@@ -1727,7 +1731,7 @@ impl JDstreamIdKey {
 
 #[derive(Debug)]
 pub struct JDstreamIdVal {
-	refcnt: u32,
+    refcnt: u32,
 }
 
 impl JDstreamIdVal {
@@ -1740,11 +1744,11 @@ impl JDstreamIdVal {
 
 #[derive(Debug)]
 pub struct JDstream {
-	size: u64,
-	alloced_size: u64,
-	default_crypto_id: u64,
-	total_bytes_written: u64,
-	total_bytes_read: u64,
+    size: u64,
+    alloced_size: u64,
+    default_crypto_id: u64,
+    total_bytes_written: u64,
+    total_bytes_read: u64,
 }
 
 impl JDstream {
@@ -1761,8 +1765,8 @@ impl JDstream {
 
 #[derive(Debug)]
 pub struct JXattrDstream {
-	xattr_obj_id: u64,
-	dstream: JDstream,
+    xattr_obj_id: u64,
+    dstream: JDstream,
 }
 
 impl JXattrDstream {
@@ -1775,12 +1779,97 @@ impl JXattrDstream {
 }
 
 
+// Extended Fields
+
+#[derive(Debug)]
+pub struct XfBlob {
+    pub num_exts: u16,
+    used_data: u16,
+    pub data: Vec<u8>,
+}
+
+impl XfBlob {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            num_exts: source.read_u16::<LittleEndian>()?,
+            used_data: source.read_u16::<LittleEndian>()?,
+            data: vec![],
+        };
+        // TODO: Use xf_used_data instead.
+        source.read_to_end(&mut value.data)?;
+        Ok(value)
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+pub enum DrecExtType {
+    DrecExtTypeSiblingId = 1,
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+pub enum InoExtType {
+    InoExtTypeSnapXid = 1,
+    InoExtTypeDeltaTreeOid = 2,
+    InoExtTypeDocumentId = 3,
+    InoExtTypeName = 4,
+    InoExtTypePrevFsize = 5,
+    InoExtTypeReserved6 = 6,
+    InoExtTypeFinderInfo = 7,
+    InoExtTypeDstream = 8,
+    InoExtTypeReserved9 = 9,
+    InoExtTypeDirStatsKey = 10,
+    InoExtTypeFsUuid = 11,
+    InoExtTypeReserved12 = 12,
+    InoExtTypeSparseBytes = 13,
+    InoExtTypeRdev = 14,
+    InoExtTypePurgeableFlags = 15,
+    InoExtTypeOrigSyncRootId = 16,
+}
+
+bitflags! {
+    pub struct XFieldFlags: u8 {
+        const DATA_DEPENDENT     = 0x0001;
+        const DO_NOT_COPY        = 0x0002;
+        const RESERVED_4         = 0x0004;
+        const CHILDREN_INHERIT   = 0x0008;
+        const USER_FIELD         = 0x0010;
+        const SYSTEM_FIELD       = 0x0020;
+        const RESERVED_40        = 0x0040;
+        const RESERVED_80        = 0x0080;
+    }
+}
+
+#[derive(Debug)]
+pub struct XField<T: FromPrimitive> {
+    pub r#type: T,
+    flags: XFieldFlags,
+    pub size: u16,
+}
+
+impl<T: FromPrimitive> XField<T> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            r#type: T::from_u8(source.read_u8()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown extended type"))?,
+            flags: XFieldFlags::from_bits(source.read_u8()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            size: source.read_u16::<LittleEndian>()?,
+        })
+    }
+}
+
+pub type XFieldInode = XField<InoExtType>;
+pub type XFieldDrec = XField<DrecExtType>;
+
+
 // Siblings
 
 #[derive(Debug)]
 pub struct JSiblingKey {
-	//hdr: JKey,
-	sibling_id: u64,
+    //hdr: JKey,
+    sibling_id: u64,
 }
 
 impl JSiblingKey {
@@ -1793,9 +1882,9 @@ impl JSiblingKey {
 
 #[derive(Debug)]
 pub struct JSiblingVal {
-	parent_id: u64,
-	name_len: u16,
-	name: Vec<u8>,
+    parent_id: u64,
+    name_len: u16,
+    name: Vec<u8>,
 }
 
 impl JSiblingVal {
@@ -1810,7 +1899,7 @@ impl JSiblingVal {
 
 #[derive(Debug)]
 pub struct JSiblingMapKey {
-	//hdr: JKey,
+    //hdr: JKey,
 }
 
 impl JSiblingMapKey {
@@ -1822,7 +1911,7 @@ impl JSiblingMapKey {
 
 #[derive(Debug)]
 pub struct JSiblingMapVal {
-	file_id: u64,
+    file_id: u64,
 }
 
 impl JSiblingMapVal {

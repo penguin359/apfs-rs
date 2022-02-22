@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -379,8 +379,29 @@ impl Btree {
                         println!("Inode: {:?}", JInodeVal::import(&mut value_cursor).unwrap());
                     },
                     JObjTypes::DirRec => {
+                        let value = JDrecVal::import(&mut value_cursor).unwrap();
                         println!("DirRec key: {:?}", JDrecHashedKey::import(&mut key_cursor).unwrap());
-                        println!("DirRec: {:?}", JDrecVal::import(&mut value_cursor).unwrap());
+                        println!("DirRec: {:?}", &value);
+                        if value.xfields.len() > 0 {
+                            let mut xfields_cursor = Cursor::new(value.xfields);
+                            let blob = XfBlob::import(&mut xfields_cursor)?;
+                            let mut xdata_cursor = Cursor::new(blob.data);
+                            let fields = (0..blob.num_exts).map(|_| XFieldDrec::import(&mut xdata_cursor).unwrap()).collect::<Vec<XFieldDrec>>();
+                            for field in &fields {
+                                assert!(field.size & 0x07 == 0, "Unaligned field!");
+                                let mut xdata = vec![0u8; field.size as usize];
+                                xdata_cursor.read_exact(&mut xdata);
+                                match field.r#type {
+                                    DrecExtType::DrecExtTypeSiblingId => {
+                                        assert_eq!(field.size, 8);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let sibling_id = xvalue_cursor.read_u64::<LittleEndian>().unwrap();
+                                        println!("Sibling ID: {}", sibling_id);
+                                    }
+                                }
+                            }
+                            println!("Fields: {:?}", &fields);
+                        }
                     },
                     JObjTypes::Xattr => {
                         println!("Xattr key: {:?}", JXattrKey::import(&mut key_cursor).unwrap());
