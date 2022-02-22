@@ -51,7 +51,7 @@ fn import_uuid(source: &mut dyn Read) -> io::Result<Uuid> {
 pub struct Oid(pub u64);
 
 impl Oid {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self(source.read_u64::<LittleEndian>()?))
     }
 }
@@ -60,7 +60,7 @@ impl Oid {
 pub struct Xid(pub u64);
 
 impl Xid {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self(source.read_u64::<LittleEndian>()?))
     }
 }
@@ -1744,7 +1744,7 @@ impl JDstreamIdVal {
 
 #[derive(Debug)]
 pub struct JDstream {
-    size: u64,
+    pub size: u64,
     alloced_size: u64,
     default_crypto_id: u64,
     total_bytes_written: u64,
@@ -1810,22 +1810,22 @@ pub enum DrecExtType {
 #[repr(u8)]
 #[derive(Debug, PartialEq, FromPrimitive)]
 pub enum InoExtType {
-    InoExtTypeSnapXid = 1,
-    InoExtTypeDeltaTreeOid = 2,
-    InoExtTypeDocumentId = 3,
-    InoExtTypeName = 4,
-    InoExtTypePrevFsize = 5,
-    InoExtTypeReserved6 = 6,
-    InoExtTypeFinderInfo = 7,
-    InoExtTypeDstream = 8,
-    InoExtTypeReserved9 = 9,
-    InoExtTypeDirStatsKey = 10,
-    InoExtTypeFsUuid = 11,
-    InoExtTypeReserved12 = 12,
-    InoExtTypeSparseBytes = 13,
-    InoExtTypeRdev = 14,
-    InoExtTypePurgeableFlags = 15,
-    InoExtTypeOrigSyncRootId = 16,
+    SnapXid = 1,
+    DeltaTreeOid = 2,
+    DocumentId = 3,
+    Name = 4,
+    PrevFsize = 5,
+    Reserved6 = 6,
+    FinderInfo = 7,
+    Dstream = 8,
+    Reserved9 = 9,
+    DirStatsKey = 10,
+    FsUuid = 11,
+    Reserved12 = 12,
+    SparseBytes = 13,
+    Rdev = 14,
+    PurgeableFlags = 15,
+    OrigSyncRootId = 16,
 }
 
 bitflags! {

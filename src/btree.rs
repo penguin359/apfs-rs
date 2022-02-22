@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::io::Cursor;
@@ -7,7 +8,7 @@ use std::ops::RangeBounds;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -340,6 +341,7 @@ impl Btree {
         let mut items = vec![];
         assert!(body.body.flags.contains(BtnFlags::LEAF));
         let mut records = vec![];
+        let mut sizes = HashMap::<u64, u64>::new();
         for _ in 0..body.body.nkeys {
             let kvloc = if(body.body.flags.contains(BtnFlags::FIXED_KV_SIZE)) {
                 let kvoff = KVoff::import(&mut cursor)?;
@@ -375,8 +377,69 @@ impl Btree {
                 println!("Key type: {:?}", key);
                 match key_type {
                     JObjTypes::Inode => {
+                        let value = JInodeVal::import(&mut value_cursor).unwrap();
                         println!("Inode key: {:?}", JInodeKey::import(&mut key_cursor).unwrap());
-                        println!("Inode: {:?}", JInodeVal::import(&mut value_cursor).unwrap());
+                        println!("Inode: {:?}", value);
+                        if value.xfields.len() > 0 {
+                            let mut xfields_cursor = Cursor::new(value.xfields);
+                            let blob = XfBlob::import(&mut xfields_cursor)?;
+                            let mut xdata_cursor = Cursor::new(blob.data);
+                            let fields = (0..blob.num_exts).map(|_| XFieldInode::import(&mut xdata_cursor).unwrap()).collect::<Vec<XFieldInode>>();
+                            for field in &fields {
+                                let aligned_size = (field.size + 7) & 0xfff8;
+                                assert!(aligned_size & 0x07 == 0, "Unaligned field!");
+                                let mut xdata = vec![0u8; aligned_size as usize];
+                                xdata_cursor.read_exact(&mut xdata);
+                                match field.r#type {
+                                    InoExtType::SnapXid => {
+                                        assert_eq!(field.size, 8);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let xvalue = Xid::import(&mut xvalue_cursor).unwrap();
+                                        println!("Snapshot Txid: {:?}", xvalue);
+                                    },
+                                    InoExtType::DeltaTreeOid => {
+                                        assert_eq!(field.size, 8);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let xvalue = Oid::import(&mut xvalue_cursor).unwrap();
+                                        println!("Delta Tree OID: {:?}", xvalue);
+                                    },
+                                    InoExtType::DocumentId => {
+                                        assert_eq!(field.size, 4);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let xvalue = xvalue_cursor.read_u32::<LittleEndian>().unwrap();
+                                        println!("Document ID: {}", xvalue);
+                                    },
+                                    InoExtType::Name => {
+                                        // assert_eq!(field.size, 4);
+                                        let xvalue = std::str::from_utf8(&xdata[0..field.size as usize]).unwrap();
+                                        // let mut xvalue_cursor = Cursor::new(xdata);
+                                        // let xvalue = xvalue_cursor.read_u32::<LittleEndian>().unwrap();
+                                        println!("File name: {}", xvalue);
+                                    },
+                                    InoExtType::PrevFsize => {
+                                        assert_eq!(field.size, 8);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let xvalue = xvalue_cursor.read_u64::<LittleEndian>().unwrap();
+                                        println!("Previous file size: {}", xvalue);
+                                    },
+                                    InoExtType::FinderInfo => {
+                                        assert_eq!(field.size, 32);
+                                        // let mut xvalue_cursor = Cursor::new(xdata);
+                                        // let xvalue = Oid::import(&mut xvalue_cursor).unwrap();
+                                        println!("FinderInfo: {:?}", xdata);
+                                    },
+                                    InoExtType::Dstream => {
+                                        // assert_eq!(field.size, 32);
+                                        let mut xvalue_cursor = Cursor::new(xdata);
+                                        let xvalue = JDstream::import(&mut xvalue_cursor).unwrap();
+                                        println!("Dstream: {:?}", &xvalue);
+                                        sizes.insert(key.obj_id_and_type.id(), xvalue.size);
+                                    },
+                                    _ => {},
+                                }
+                            }
+                            println!("Fields: {:?}", &fields);
+                        }
                     },
                     JObjTypes::DirRec => {
                         let value = JDrecVal::import(&mut value_cursor).unwrap();
@@ -408,8 +471,15 @@ impl Btree {
                         println!("Xattr: {:?}", JXattrVal::import(&mut value_cursor).unwrap());
                     },
                     JObjTypes::FileExtent => {
+                        let value = JFileExtentVal::import(&mut value_cursor).unwrap();
                         println!("FileExtent key: {:?}", JFileExtentKey::import(&mut key_cursor).unwrap());
-                        println!("FileExtent: {:?}", JFileExtentVal::import(&mut value_cursor).unwrap());
+                        println!("FileExtent: {:?}", value);
+                        let length = sizes[&key.obj_id_and_type.id()] as usize;
+                        // let length = 12;
+                        println!("Reading block: {} ({} bytes)", value.phys_block_num, length);
+                        if let Ok(block) = apfs.load_block(Paddr(value.phys_block_num as i64)) {
+                            println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
+                        }
                     },
                     JObjTypes::DstreamId => {
                         println!("DstreamId key: {:?}", JDstreamIdKey::import(&mut key_cursor).unwrap());
