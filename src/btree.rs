@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, OBJ_TYPE_MASK, OBJ_TYPE_SHIFT};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -371,21 +371,24 @@ impl Btree {
                 records.push(record);
             } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
                 let key = JKey::import(&mut key_cursor)?;
-                let key_type = JObjTypes::from_u8(((key.obj_id_and_type & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT) as u8).unwrap();
-                println!("Key type: {:?}", key_type);
-                if key_type == JObjTypes::DirRec {
-                    let name_len = key_cursor.read_u32::<LittleEndian>().unwrap();
-                    println!("Key length: {}", name_len & 0x3ff);
-                    // println!("Key: {:?}", &key_data);
-                    let mut name = vec![0u8; (name_len & 0x3ff) as usize];
-                    key_cursor.read_exact(&mut name).unwrap();
-                    println!("Key name: {:?}", String::from_utf8(name).unwrap());
-                    // println!("Key name: {:?}", String::from_utf8_lossy(&name));
-                    // let mut name = vec![];
-                    // for _ in 0..(name_len& 0x3ff)/2 {
-                    //     name.push(key_cursor.read_u16::<BigEndian>().unwrap());
-                    // }
-                    // println!("Key name: {:?}", String::from_utf16(&name).unwrap());
+                let key_type = key.obj_id_and_type.r#type();
+                println!("Key type: {:?}", key);
+                match key_type {
+                    JObjTypes::Inode => {
+                        println!("Inode key: {:?}", JInodeKey::import(&mut key_cursor).unwrap());
+                        println!("Inode: {:?}", JInodeVal::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::DirRec => {
+                        println!("DirRec key: {:?}", JDrecHashedKey::import(&mut key_cursor).unwrap());
+                        println!("DirRec: {:?}", JDrecVal::import(&mut value_cursor).unwrap());
+                    },
+                    JObjTypes::Xattr => {
+                        println!("Xattr key: {:?}", JXattrKey::import(&mut key_cursor).unwrap());
+                        println!("Xattr: {:?}", JXattrVal::import(&mut value_cursor).unwrap());
+                    },
+                    _ => {
+                        println!("Unsupported key type: {:?}!", key_type);
+                    },
                 }
             }
         }

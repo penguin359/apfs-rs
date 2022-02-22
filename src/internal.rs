@@ -197,7 +197,7 @@ impl ObjectTypeAndFlags {
 
 impl std::fmt::Debug for ObjectTypeAndFlags {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{:?}: {:?} ({:?})", self.r#type(), self.storage(), self.flags())
+        write!(f, "{:?}: {:?} ({:?})", self.r#type(), self.storage(), self.flags())
     }
 }
 
@@ -439,7 +439,7 @@ const NX_MINIMUM_CONTAINER_SIZE: usize = 1048576;
 
 #[derive(Debug)]
 struct CheckpointMapping {
-    r#type:    ObjectTypeAndFlags,
+    r#type:     ObjectTypeAndFlags,
     subtype:    ObjectTypeAndFlags,
     size:       u32,
     pad:        u32,
@@ -1097,6 +1097,7 @@ impl BtnIndexNodeVal {
 
 
 // Encryption
+// Early definitions needed only
 
 // These types for encrytion are unfinished, but needed to skip over in Volume superblock
 type CpKeyClass = u32;
@@ -1376,20 +1377,267 @@ pub enum JObjTypes {
 // File-System Objects
 
 const OBJ_ID_MASK                       : u64 = 0x0fffffffffffffff;
-pub const OBJ_TYPE_MASK                     : u64 = 0xf000000000000000;
-pub const OBJ_TYPE_SHIFT                    : usize = 60;
+const OBJ_TYPE_MASK                     : u64 = 0xf000000000000000;
+const OBJ_TYPE_SHIFT                    : usize = 60;
 
 const SYSTEM_OBJ_ID_MARK                : u64 = 0x0fffffff00000000;
 
+pub struct JObjectIdAndType(u64);
+
+impl JObjectIdAndType {
+    pub fn new(value: u64) -> io::Result<Self> {
+        JObjTypes::from_u8(((value & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT) as u8)
+            .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown filesystem object type"))?;
+        Ok(Self(value))
+    }
+
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Self::new(source.read_u64::<LittleEndian>()?)
+    }
+
+    pub fn id(&self) -> u64 {
+        self.0 & OBJ_ID_MASK
+    }
+
+    pub fn is_system_object(&self) -> bool {
+        self.0 & OBJ_ID_MASK >= SYSTEM_OBJ_ID_MARK
+    }
+
+    pub fn r#type(&self) -> JObjTypes {
+        JObjTypes::from_u8(((self.0 & OBJ_TYPE_MASK) >> OBJ_TYPE_SHIFT) as u8).expect("Unknown filesystem object type")
+    }
+}
+
+impl std::fmt::Debug for JObjectIdAndType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}: {:?} (system: {:?})", self.r#type(), self.id(), self.is_system_object())
+    }
+}
+
 #[derive(Debug)]
 pub struct JKey {
-    pub obj_id_and_type: u64,
+    pub obj_id_and_type: JObjectIdAndType,
 }
 
 impl JKey {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            obj_id_and_type: source.read_u64::<LittleEndian>()?,
+            obj_id_and_type: JObjectIdAndType::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JInodeKey {
+    //hdr: JKey,
+}
+
+impl JInodeKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+type Uid = u32;
+type Gid = u32;
+
+type Mode = u16;
+
+//#define S_IFMT 0170000
+//
+//#define S_IFIFO 0010000
+//#define S_IFCHR 0020000
+//#define S_IFDIR 0040000
+//#define S_IFBLK 0060000
+//#define S_IFREG 0100000
+//#define S_IFLNK 0120000
+//#define S_IFSOCK 0140000
+//#define S_IFWHT 0160000
+//
+//#define DT_UNKNOWN 0
+//#define DT_FIFO 1
+//#define DT_CHR 2
+//#define DT_DIR 4
+//#define DT_BLK 6
+//#define DT_REG 8
+//#define DT_LNK 10
+//#define DT_SOCK 12
+//#define DT_WHT 14
+
+#[derive(Debug)]
+pub struct JInodeVal {
+    parent_id: u64,
+    private_id: u64,
+
+    create_time: u64,
+    mod_time: u64,
+    change_time: u64,
+    access_time: u64,
+
+    internal_flags: u64,
+
+    nchildren_or_nlink: i32,
+
+    default_protection_class: CpKeyClass,
+    write_generation_counter: u32,
+    bsd_flags: u32,
+    owner: Uid,
+    group: Gid,
+    mode: Mode,
+    pad1: u16,
+    uncompressed_size: u64,
+    xfields: Vec<u8>,
+}
+
+impl JInodeVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            parent_id: source.read_u64::<LittleEndian>()?,
+            private_id: source.read_u64::<LittleEndian>()?,
+
+            create_time: source.read_u64::<LittleEndian>()?,
+            mod_time: source.read_u64::<LittleEndian>()?,
+            change_time: source.read_u64::<LittleEndian>()?,
+            access_time: source.read_u64::<LittleEndian>()?,
+
+            internal_flags: source.read_u64::<LittleEndian>()?,
+
+            nchildren_or_nlink: source.read_i32::<LittleEndian>()?,
+
+            default_protection_class: source.read_u32::<LittleEndian>()?,
+            write_generation_counter: source.read_u32::<LittleEndian>()?,
+            bsd_flags: source.read_u32::<LittleEndian>()?,
+            owner: source.read_u32::<LittleEndian>()?,
+            group: source.read_u32::<LittleEndian>()?,
+            mode: source.read_u16::<LittleEndian>()?,
+            pad1: source.read_u16::<LittleEndian>()?,
+            uncompressed_size: source.read_u64::<LittleEndian>()?,
+            xfields: vec![],
+        })
+    }
+}
+
+const J_DREC_LEN_MASK : u32 = 0x000003ff;
+const J_DREC_HASH_MASK : u32 = 0xfffff400;
+const J_DREC_HASH_SHIFT : usize = 10;
+
+#[derive(Debug)]
+struct JDrecKey {
+    //hdr: JKey,
+    name_len: u16,
+    //name: Vec<u8>,
+    name: String,  // XXX: Should this be raw bytes and checked later or a structured type?
+}
+
+impl JDrecKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let name_len = source.read_u16::<LittleEndian>()?;
+        let mut name = vec![0u8; name_len as usize];
+        source.read_exact(&mut name)?;
+        Ok(Self {
+            name_len,
+            name: String::from_utf8(name)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 string"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JDrecHashedKey {
+    //hdr: JKey,
+    name_len_and_hash: u32,
+    //name: Vec<u8>,
+    name: String,  // XXX: Should this be raw bytes and checked later or a structured type?
+}
+
+impl JDrecHashedKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let name_len_and_hash = source.read_u32::<LittleEndian>()?;
+        let mut name = vec![0u8; (name_len_and_hash  & J_DREC_LEN_MASK) as usize];
+        source.read_exact(&mut name)?;
+        Ok(Self {
+            name_len_and_hash,
+            name: String::from_utf8(name)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 string"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JDrecVal {
+    file_id: u64,
+    date_added: u64,
+    flags: u16,
+    xfields: Vec<u8>,
+}
+
+impl JDrecVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            file_id: source.read_u64::<LittleEndian>()?,
+            date_added: source.read_u64::<LittleEndian>()?,
+            flags: source.read_u16::<LittleEndian>()?,
+            xfields: vec![],
+        })
+    }
+}
+
+
+#[derive(Debug)]
+struct JDirStatsKey {
+    //hdr: JKey,
+}
+
+impl JDirStatsKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+#[derive(Debug)]
+struct JDirStatsVal {
+    num_children: u64,
+    total_size: u64,
+    chained_key: u64,
+    gen_count: u64,
+}
+
+#[derive(Debug)]
+pub struct JXattrKey {
+    //hdr: JKey,
+    name_len: u16,
+    //name: Vec<u8>,
+    name: String,
+}
+
+impl JXattrKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let name_len = source.read_u16::<LittleEndian>()?;
+        let mut name = vec![0u8; name_len as usize];
+        source.read_exact(&mut name)?;
+        Ok(Self {
+            name_len,
+            name: String::from_utf8(name)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 string"))?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct JXattrVal {
+    flags: u16,
+    xdata_len: u16,
+    xdata: Vec<u8>,
+}
+
+impl JXattrVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            flags: source.read_u16::<LittleEndian>()?,
+            xdata_len: source.read_u16::<LittleEndian>()?,
+            xdata: vec![],
         })
     }
 }
