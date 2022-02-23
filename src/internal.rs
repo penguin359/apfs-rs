@@ -24,9 +24,9 @@ impl Paddr {
 }
 
 #[derive(Debug)]
-struct Prange {
-    start_paddr: Paddr,
-    block_count: u64,
+pub struct Prange {
+    pub start_paddr: Paddr,
+    pub block_count: u64,
 }
 
 impl Prange {
@@ -172,7 +172,7 @@ pub struct ObjectTypeAndFlags(u32);
 
 impl ObjectTypeAndFlags {
     pub fn new(value: u32) -> io::Result<ObjectTypeAndFlags> {
-        ObjectType::from_u32(value & OBJECT_TYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown object type"))?;
+        ObjectType::from_u32(value & OBJECT_TYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown object type: {}", value & OBJECT_TYPE_MASK)))?;
         StorageType::from_u32(value & OBJ_STORAGETYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown storage type"))?;
         ObjTypeFlags::from_bits(value & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK)).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown object flags"))?;
         Ok(ObjectTypeAndFlags(value))
@@ -331,7 +331,7 @@ pub struct NxSuperblock {
         flags: SuperblockFlags,
         efi_jumpstart: Paddr,
         fusion_uuid: Uuid,
-        keylocker: Prange,
+        pub keylocker: Prange,
         ephemeral_info: [u64; NX_EPH_INFO_COUNT],
 
         test_oid: Oid,

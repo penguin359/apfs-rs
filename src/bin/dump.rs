@@ -1,4 +1,4 @@
-use apfs::{APFS, APFSObject, Oid, Paddr, StorageType};
+use apfs::{APFS, APFSObject, Oid, Paddr, StorageType, OvFlags};
 
 use std::env;
 
@@ -19,6 +19,11 @@ fn main() {
     for idx in 0..superblock.body.xp_data_blocks {
         let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
         println!("Checkpoint data object: {:#?}", object);
+    }
+    if superblock.body.keylocker.start_paddr.0 != 0 &&
+       superblock.body.keylocker.block_count != 0 {
+        println!("Found keylocker");
+        println!("{:?}", apfs.load_block(superblock.body.keylocker.start_paddr));
     }
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
@@ -52,6 +57,10 @@ fn main() {
         let btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
         for record in btree.root.records {
+            if record.value.flags.contains(OvFlags::ENCRYPTED) {
+                println!("Encrypted volume found, skipping...");
+                continue;
+            }
             // let object = apfs.load_object_addr(record.value.paddr).unwrap();
             let root_tree_result = apfs.load_btree(Oid(record.value.paddr.0 as u64), StorageType::Physical);
             if root_tree_result.is_err() {
