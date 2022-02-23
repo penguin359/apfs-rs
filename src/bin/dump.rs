@@ -45,6 +45,9 @@ fn main() {
             _ => { panic!("Wrong object type!"); },
         };
         let btree_result = apfs.load_btree(omap.body.tree_oid, StorageType::Physical);
+        if btree_result.is_err() {
+            println!("Error: {:?}", btree_result.as_ref().err());
+        }
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
