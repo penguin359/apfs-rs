@@ -20,7 +20,14 @@ use crate::internal::JKey;
 
 use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
-pub trait Key : PartialOrd + Ord + PartialEq + Eq {
+pub trait Key : PartialOrd + Ord + PartialEq + Eq + Sized {
+    fn import(source: &mut dyn Read) -> io::Result<Self>;
+
+    // fn import_value(&self, source: &mut dyn Read) -> io::Result<V> {
+}
+
+pub trait Value : Sized {
+    fn import(source: &mut dyn Read) -> io::Result<Self>;
 }
 
 // #[derive(Debug)]
@@ -60,6 +67,62 @@ impl Eq for OmapKey {
 }
 
 impl Key for OmapKey {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self::import(source)?)
+    }
+
+    // fn import_value(&self, source: &mut dyn Read) -> io::Result<OmapVal> {
+    //     Ok(OmapVal::import(source)?)
+    // }
+}
+
+impl Value for OmapVal {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self::import(source)?)
+    }
+}
+
+struct ApfsKey {
+    pub key: JKey,
+}
+
+/* Object map keys match on the object ID equality and
+   a transaction ID that is less than or equal */
+impl Ord for ApfsKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // let order = self.oid.cmp(&other.oid);
+        // match order {
+        //     Ordering::Equal => match self.xid.cmp(&other.xid) {
+        //         Ordering::Less => Ordering::Less,
+        //         _ => Ordering::Equal,
+        //     },
+        //     _ => order,
+        // }
+        Ordering::Equal
+    }
+}
+
+impl PartialOrd for ApfsKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ApfsKey {
+    fn eq(&self, other: &Self) -> bool {
+        // self.cmp(other) == Ordering::Equal
+        true
+    }
+}
+
+impl Eq for ApfsKey {
+}
+
+impl Key for ApfsKey {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        // Ok(Self::import(source)?)
+        Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
+    }
 }
 
 #[derive(Debug)]
@@ -155,6 +218,60 @@ mod test {
         assert_ne!(key3, key4);
     }
 
+    // #[test]
+    // fn test_volume_object_key_ordering() {
+    //     let key1 = JInodeKey {
+    //         oid: Oid(23),
+    //         xid: Xid(17),
+    //     };
+    //     let key2 = OmapKey {
+    //         oid: Oid(23),
+    //         xid: Xid(17),
+    //     };
+    //     let key_oid_less = OmapKey {
+    //         oid: Oid(21),
+    //         xid: Xid(17),
+    //     };
+    //     let key_oid_greater = OmapKey {
+    //         oid: Oid(25),
+    //         xid: Xid(17),
+    //     };
+    //     let key_xid_less = OmapKey {
+    //         oid: Oid(23),
+    //         xid: Xid(16),
+    //     };
+    //     let key_xid_greater = OmapKey {
+    //         oid: Oid(23),
+    //         xid: Xid(18),
+    //     };
+    //     let key_oid_less_xid_less = OmapKey {
+    //         oid: Oid(21),
+    //         xid: Xid(16),
+    //     };
+    //     let key_oid_greater_xid_less = OmapKey {
+    //         oid: Oid(25),
+    //         xid: Xid(16),
+    //     };
+    //     let key_oid_less_xid_greater = OmapKey {
+    //         oid: Oid(21),
+    //         xid: Xid(18),
+    //     };
+    //     let key_oid_greater_xid_greater = OmapKey {
+    //         oid: Oid(25),
+    //         xid: Xid(18),
+    //     };
+    //     assert_eq!(key1.cmp(&key2), Ordering::Equal);
+    //     assert_eq!(key1.cmp(&key_oid_less), Ordering::Greater);
+    //     assert_eq!(key1.cmp(&key_oid_greater), Ordering::Less);
+    //     /* Matching keys have same Oid and and Xid less than or equal */
+    //     assert_eq!(key1.cmp(&key_xid_less), Ordering::Equal);
+    //     assert_eq!(key1.cmp(&key_xid_greater), Ordering::Less);
+    //     assert_eq!(key1.cmp(&key_oid_less_xid_less), Ordering::Greater);
+    //     assert_eq!(key1.cmp(&key_oid_less_xid_greater), Ordering::Greater);
+    //     assert_eq!(key1.cmp(&key_oid_greater_xid_less), Ordering::Less);
+    //     assert_eq!(key1.cmp(&key_oid_greater_xid_greater), Ordering::Less);
+    // }
+
     use crate::tests::test_dir;
 
     #[test]
@@ -194,7 +311,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.root.records.len(), 1);
@@ -209,7 +326,7 @@ mod test {
     fn test_load_object_map_btree_dummy() {
         let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
         let mut apfs = APFS { source, block_size: 4096 };
-        let btree_result = Btree::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.root.records.len(), 6);
@@ -258,7 +375,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_ne!(superblock.body.fs_oid[0], Oid(0));
@@ -286,16 +403,21 @@ mod test {
 //    //LeafNode(LeafNode<R>),
 //}
 
+// trait BTreeType {
+//     type key: Key,
+//     type value: Value,
+// }
+
 #[derive(Debug)]
-pub struct Btree {
+pub struct Btree<K: Key, V: Value> {
     info: BtreeInfo,
-    pub root: BtreeNode,
+    pub root: BtreeNode<K, V>,
 }
 
 #[derive(Debug)]
-pub struct BtreeNode {
+pub struct BtreeNode<K: Key, V: Value> {
     node: BtreeNodeObject,
-    pub records: Vec<Record<OmapKey, OmapVal>>,
+    pub records: Vec<Record<K, V>>,
 }
 
 enum BtreeRawObject {
@@ -303,12 +425,14 @@ enum BtreeRawObject {
     BtreeNonRoot(BtreeNodeObject),
 }
 
-enum BtreeDecodedObject {
-    BtreeRoot(BtreeNode, BtreeInfo),
-    BtreeNonRoot(BtreeNode),
+enum BtreeDecodedObject<K: Key, V: Value> {
+    BtreeRoot(BtreeNode<K, V>, BtreeInfo),
+    BtreeNonRoot(BtreeNode<K, V>),
 }
 
-impl Btree {
+impl<K, V> Btree<K, V> where
+    K: Key,
+    V: Value {
     fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
         let object = apfs.load_object_oid(oid, r#type)?;
         let mut body = match object {
@@ -320,7 +444,7 @@ impl Btree {
         Ok(BtreeRawObject::BtreeRoot(body, info))
     }
 
-    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject> {
+    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<K, V>> {
         let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
             _ => { unreachable!() },
@@ -364,8 +488,8 @@ impl Btree {
             let mut key_cursor = Cursor::new(key_data);
             let mut value_cursor = Cursor::new(val_data);
             if body.header.subtype.r#type() == ObjectType::Omap  {
-                let key = OmapKey::import(&mut key_cursor)?;
-                let val = OmapVal::import(&mut value_cursor)?;
+                let key = K::import(&mut key_cursor)?;
+                let val = V::import(&mut value_cursor)?;
                 let record = Record {
                     key,
                     value: val,
@@ -505,7 +629,7 @@ impl Btree {
         Ok(BtreeDecodedObject::BtreeRoot(node, info))
     }
 
-    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree> {
+    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<K, V>> {
         let (root, info) = match Self::load_btree_node(apfs, oid, r#type)? {
             BtreeDecodedObject::BtreeRoot(body, info) => (body, info),
             _ => { unreachable!() },

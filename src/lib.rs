@@ -217,7 +217,7 @@ impl APFS<File> {
         Ok(APFS { source, block_size: superblock.block_size as usize })
     }
 
-    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree> {
+    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<OmapKey, OmapVal>> {
         btree::Btree::load_btree(self, oid, r#type)
     }
 }
