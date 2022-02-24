@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -87,8 +87,10 @@ impl GenericValue for OmapVal {
 #[derive(Debug)]
 pub enum ApfsSubKey {
     None,
-    Drec(JDrecKey),
+    Name(String),
     DrecHashed(JDrecHashedKey),
+    FileExtent(JFileExtentKey),
+    SiblingLink(JSiblingKey),
 }
 
 #[derive(Debug)]
@@ -185,7 +187,7 @@ pub enum ApfsValue {
     Xattr(JXattrVal),
     FileExtent(JFileExtentVal),
     DstreamId(JDstreamIdVal),
-    SiblingLink(JSiblingKey),
+    SiblingLink(JSiblingVal),
     SiblingMap(JSiblingMapVal),
 }
 
@@ -311,7 +313,7 @@ impl Record<ApfsKey, ApfsValue> for FsRecord {
                 return Ok(FsRecord {
                     key: ApfsKey {
                         key: key,
-                        subkey: ApfsSubKey::None,
+                        subkey: ApfsSubKey::Name(subkey.name),
                     },
                     value: ApfsValue::Xattr(value),
                 });
@@ -330,7 +332,7 @@ impl Record<ApfsKey, ApfsValue> for FsRecord {
                 return Ok(FsRecord {
                     key: ApfsKey {
                         key: key,
-                        subkey: ApfsSubKey::None,
+                        subkey: ApfsSubKey::FileExtent(subkey),
                     },
                     value: ApfsValue::FileExtent(value),
                 });
@@ -350,13 +352,13 @@ impl Record<ApfsKey, ApfsValue> for FsRecord {
             },
             JObjTypes::SiblingLink => {
                 let subkey = JSiblingKey::import(key_cursor)?;
-                let value = JSiblingKey::import(value_cursor)?;
+                let value = JSiblingVal::import(value_cursor)?;
                 println!("SiblingLink key: {:?}", &subkey);
                 println!("SiblingLink: {:?}", &value);
                 return Ok(FsRecord {
                     key: ApfsKey {
                         key: key,
-                        subkey: ApfsSubKey::None,
+                        subkey: ApfsSubKey::SiblingLink(subkey),
                     },
                     value: ApfsValue::SiblingLink(value),
                 });

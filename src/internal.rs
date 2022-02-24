@@ -1613,7 +1613,7 @@ pub struct JXattrKey {
     //hdr: JKey,
     name_len: u16,
     //name: Vec<u8>,
-    name: String,
+    pub name: String,
 }
 
 impl JXattrKey {
