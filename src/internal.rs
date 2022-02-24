@@ -1525,7 +1525,7 @@ const J_DREC_HASH_MASK : u32 = 0xfffff400;
 const J_DREC_HASH_SHIFT : usize = 10;
 
 #[derive(Debug)]
-struct JDrecKey {
+pub struct JDrecKey {
     //hdr: JKey,
     name_len: u16,
     //name: Vec<u8>,
