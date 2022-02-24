@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::io::Cursor;
+use std::marker::PhantomData;
 use std::ops::RangeBounds;
+use std::fmt::Debug;
 
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
@@ -20,21 +22,19 @@ use crate::internal::JKey;
 
 use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
-pub trait Key : PartialOrd + Ord + PartialEq + Eq + Sized {
-    fn import(source: &mut dyn Read) -> io::Result<Self>;
-
-    // fn import_value(&self, source: &mut dyn Read) -> io::Result<V> {
+pub trait Key : PartialOrd + Ord + PartialEq + Eq + Debug {
 }
 
-pub trait Value : Sized {
+pub trait Value : Debug {
+}
+
+pub trait GenericKey : Key + Sized {
     fn import(source: &mut dyn Read) -> io::Result<Self>;
 }
 
-// #[derive(Debug)]
-// struct OmapKey {
-//     oid: Oid,
-//     xid: Xid,
-// }
+pub trait GenericValue : Value + Sized {
+    fn import(source: &mut dyn Read) -> io::Result<Self>;
+}
 
 /* Object map keys match on the object ID equality and
    a transaction ID that is less than or equal */
@@ -67,21 +67,24 @@ impl Eq for OmapKey {
 }
 
 impl Key for OmapKey {
+}
+
+impl GenericKey for OmapKey {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self::import(source)?)
     }
-
-    // fn import_value(&self, source: &mut dyn Read) -> io::Result<OmapVal> {
-    //     Ok(OmapVal::import(source)?)
-    // }
 }
 
 impl Value for OmapVal {
+}
+
+impl GenericValue for OmapVal {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self::import(source)?)
     }
 }
 
+#[derive(Debug)]
 struct ApfsKey {
     pub key: JKey,
 }
@@ -119,17 +122,44 @@ impl Eq for ApfsKey {
 }
 
 impl Key for ApfsKey {
+}
+
+impl GenericKey for ApfsKey {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         // Ok(Self::import(source)?)
         Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
     }
 }
 
+pub trait Record<K: Key, V>: Debug + Sized {
+    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self>;
+    fn key(&self) -> &K;
+    fn value(&self) -> &V;
+}
+
 #[derive(Debug)]
-pub struct Record<K, V>
-    where K: Key {
+pub struct GenericRecord<K, V> where
+    K: GenericKey,
+    V: GenericValue {
     pub key: K,
     pub value: V,
+}
+
+impl<K: GenericKey, V: GenericValue> Record<K, V> for GenericRecord<K, V> {
+    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            key: K::import(key)?,
+            value: V::import(value)?,
+        })
+    }
+
+    fn key(&self) -> &K {
+        &self.key
+    }
+
+    fn value(&self) -> &V {
+        &self.value
+    }
 }
 
 #[cfg(test)]
@@ -311,7 +341,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal, GenericRecord<OmapKey, OmapVal>>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.root.records.len(), 1);
@@ -326,7 +356,7 @@ mod test {
     fn test_load_object_map_btree_dummy() {
         let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
         let mut apfs = APFS { source, block_size: 4096 };
-        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal, GenericRecord<OmapKey, OmapVal>>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_eq!(btree.root.records.len(), 6);
@@ -375,7 +405,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::<OmapKey, OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapKey, OmapVal, GenericRecord<OmapKey, OmapVal>>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_ne!(superblock.body.fs_oid[0], Oid(0));
@@ -409,15 +439,19 @@ mod test {
 // }
 
 #[derive(Debug)]
-pub struct Btree<K: Key, V: Value> {
+pub struct Btree<K: Key, V: Value, R: Record<K, V>> {
     info: BtreeInfo,
-    pub root: BtreeNode<K, V>,
+    pub root: BtreeNode<K, V, R>,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
 }
 
 #[derive(Debug)]
-pub struct BtreeNode<K: Key, V: Value> {
+pub struct BtreeNode<K: Key, V: Value, R: Record<K, V>> {
     node: BtreeNodeObject,
-    pub records: Vec<Record<K, V>>,
+    pub records: Vec<R>,
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
 }
 
 enum BtreeRawObject {
@@ -425,14 +459,15 @@ enum BtreeRawObject {
     BtreeNonRoot(BtreeNodeObject),
 }
 
-enum BtreeDecodedObject<K: Key, V: Value> {
-    BtreeRoot(BtreeNode<K, V>, BtreeInfo),
-    BtreeNonRoot(BtreeNode<K, V>),
+enum BtreeDecodedObject<K: Key, V: Value, R: Record<K, V>> {
+    BtreeRoot(BtreeNode<K, V, R>, BtreeInfo),
+    BtreeNonRoot(BtreeNode<K, V, R>),
 }
 
-impl<K, V> Btree<K, V> where
+impl<K, V, R> Btree<K, V, R> where
     K: Key,
-    V: Value {
+    V: Value,
+    R: Record<K, V> {
     fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
         let object = apfs.load_object_oid(oid, r#type)?;
         let mut body = match object {
@@ -444,7 +479,7 @@ impl<K, V> Btree<K, V> where
         Ok(BtreeRawObject::BtreeRoot(body, info))
     }
 
-    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<K, V>> {
+    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<K, V, R>> {
         let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
             _ => { unreachable!() },
@@ -488,12 +523,7 @@ impl<K, V> Btree<K, V> where
             let mut key_cursor = Cursor::new(key_data);
             let mut value_cursor = Cursor::new(val_data);
             if body.header.subtype.r#type() == ObjectType::Omap  {
-                let key = K::import(&mut key_cursor)?;
-                let val = V::import(&mut value_cursor)?;
-                let record = Record {
-                    key,
-                    value: val,
-                };
+                let record = R::import_record(&mut key_cursor, &mut value_cursor)?;
                 records.push(record);
             } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
                 let key = JKey::import(&mut key_cursor)?;
@@ -624,20 +654,20 @@ impl<K, V> Btree<K, V> where
             }
         }
         let node = BtreeNode {
-            node: body, records
+            node: body, records, _k: PhantomData, _v: PhantomData
         };
         Ok(BtreeDecodedObject::BtreeRoot(node, info))
     }
 
-    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<K, V>> {
+    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<K, V, R>> {
         let (root, info) = match Self::load_btree_node(apfs, oid, r#type)? {
             BtreeDecodedObject::BtreeRoot(body, info) => (body, info),
             _ => { unreachable!() },
         };
-        Ok(Btree { info, root })
+        Ok(Btree { info, root, _k: PhantomData, _v: PhantomData })
     }
 
-    pub fn get_record(&self, key: OmapKey) -> io::Result<Record<OmapKey, OmapVal>> {
+    pub fn get_record(&self, key: OmapKey) -> io::Result<GenericRecord<OmapKey, OmapVal>> {
         Err(io::Error::new(io::ErrorKind::Other, ""))
     }
 }

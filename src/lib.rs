@@ -130,6 +130,7 @@ use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
 
+use btree::GenericRecord;
 use num_traits::FromPrimitive;
 
 #[macro_use]
@@ -217,7 +218,7 @@ impl APFS<File> {
         Ok(APFS { source, block_size: superblock.block_size as usize })
     }
 
-    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<OmapKey, OmapVal>> {
+    pub fn load_btree(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<OmapKey, OmapVal, GenericRecord<OmapKey, OmapVal>>> {
         btree::Btree::load_btree(self, oid, r#type)
     }
 }
