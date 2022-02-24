@@ -1,4 +1,4 @@
-use apfs::{APFS, APFSObject, Oid, Paddr, StorageType, OvFlags, OmapKey, OmapVal, OmapRecord, ApfsKey, ApfsValue, FsRecord};
+use apfs::{APFS, APFSObject, Oid, Paddr, StorageType, OvFlags, OmapKey, OmapVal, OmapRecord, ApfsKey, ApfsValue, FsRecord, AnyRecords};
 
 use std::env;
 
@@ -37,7 +37,11 @@ fn main() {
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
     println!("Superblock Object Map B-Tree: {:#?}", btree);
-    for record in btree.root.records {
+    let records: Vec<OmapRecord> = match btree.root.records {
+        AnyRecords::Leaf(x) => x,
+        _ => { panic!("Wrong b-tree record type!"); },
+    };
+    for record in records {
         let object = apfs.load_object_addr(record.value.paddr).unwrap();
         let volume = match object {
             APFSObject::ApfsSuperblock(x) => x,
@@ -56,7 +60,11 @@ fn main() {
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
-        for record in btree.root.records {
+        let records: Vec<OmapRecord> = match btree.root.records {
+            AnyRecords::Leaf(x) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        for record in records {
             if record.value.flags.contains(OvFlags::ENCRYPTED) {
                 println!("Encrypted volume found, skipping...");
                 continue;
