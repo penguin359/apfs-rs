@@ -1,6 +1,6 @@
-use apfs::{APFS, APFSObject, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords};
+use apfs::{APFS, APFSObject, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, LeafRecord, InoExtType, InodeXdata};
 
-use std::env;
+use std::{env, collections::HashMap};
 
 fn main() {
     println!("Dumping file");
@@ -77,6 +77,25 @@ fn main() {
             assert!(root_tree_result.is_ok(), "Bad b-tree load");
             let root_tree = root_tree_result.unwrap();
             println!("Volume Root B-Tree: {:#?}", root_tree);
+            let file_records: Vec<LeafRecord<ApfsValue>> = match root_tree.root.records {
+                AnyRecords::Leaf(x) => x,
+                _ => { panic!("Wrong b-tree record type!"); },
+            };
+            let mut sizes = HashMap::<u64, u64>::new();
+            for file_record in file_records {
+                if let ApfsValue::Inode(y) = file_record.value {
+                    if let Some(&InodeXdata::Dstream(ref z)) = y.xdata.get(&InoExtType::Dstream) {
+                        sizes.insert(file_record.key.key.obj_id_and_type.id(), z.size);
+                    }
+                } else if let ApfsValue::FileExtent(y) = file_record.value {
+                    let length = sizes[&file_record.key.key.obj_id_and_type.id()] as usize;
+                    // let length = 12;
+                    println!("Reading block: {} ({} bytes)", y.phys_block_num, length);
+                    if let Ok(block) = apfs.load_block(Paddr(y.phys_block_num as i64)) {
+                        println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
+                    }
+                }
+            }
         }
 
         // let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);

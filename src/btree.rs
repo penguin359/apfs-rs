@@ -344,11 +344,9 @@ impl LeafValue for ApfsValue {
                                 xdata_map.insert(field.r#type, InodeXdata::FinderInfo(xdata[0..32].try_into().unwrap()));
                             },
                             InoExtType::Dstream => {
-                                // assert_eq!(field.size, 32);
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let xvalue = JDstream::import(&mut xvalue_cursor).unwrap();
                                 println!("Dstream: {:?}", &xvalue);
-                                // sizes.insert(key.obj_id_and_type.id(), xvalue.size);
                                 xdata_map.insert(field.r#type, InodeXdata::Dstream(xvalue));
                             },
                             _ => {},
