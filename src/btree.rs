@@ -129,9 +129,77 @@ impl Eq for ApfsKey {
 }
 
 impl Key for ApfsKey {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
-        // Ok(Self::import(source)?)
-        Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
+    fn import(key_cursor: &mut dyn Read) -> io::Result<Self> {
+        let key = JKey::import(key_cursor)?;
+        let key_type = key.obj_id_and_type.r#type();
+        println!("Key type: {:?}", key);
+        match key_type {
+            JObjTypes::Inode => {
+                println!("Inode key: {:?}", JInodeKey::import(key_cursor)?);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
+                });
+            },
+            JObjTypes::DirRec => {
+                let subkey = JDrecHashedKey::import(key_cursor)?;
+                println!("DirRec key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::DrecHashed(subkey),
+                });
+            },
+            JObjTypes::Xattr => {
+                let subkey = JXattrKey::import(key_cursor)?;
+                println!("Xattr key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::Name(subkey.name),
+                });
+            },
+            JObjTypes::FileExtent => {
+                let subkey = JFileExtentKey::import(key_cursor)?;
+                println!("FileExtent key: {:?}", &subkey);
+                // let length = sizes[&key.obj_id_and_type.id()] as usize;
+                // // let length = 12;
+                // println!("Reading block: {} ({} bytes)", value.phys_block_num, length);
+                // if let Ok(block) = apfs.load_block(Paddr(value.phys_block_num as i64)) {
+                //     println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
+                // }
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::FileExtent(subkey),
+                });
+            },
+            JObjTypes::DstreamId => {
+                let subkey = JDstreamIdKey::import(key_cursor)?;
+                println!("DstreamId key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
+                });
+            },
+            JObjTypes::SiblingLink => {
+                let subkey = JSiblingKey::import(key_cursor)?;
+                println!("SiblingLink key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::SiblingLink(subkey),
+                });
+            },
+            JObjTypes::SiblingMap => {
+                let subkey = JSiblingMapKey::import(key_cursor)?;
+                println!("SiblingMap key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
+                });
+            },
+            _ => {
+                println!("Unsupported key type: {:?}!", key_type);
+            },
+        }
+        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized node type"));
     }
 }
 
@@ -169,12 +237,6 @@ impl<V> Record for LeafRecord<V> where
 pub type OmapRecord = LeafRecord<OmapVal>;
 
 #[derive(Debug)]
-pub struct FsRecord {
-    key: ApfsKey,
-    value: ApfsValue,
-}
-
-#[derive(Debug)]
 pub enum ApfsValue {
     Inode(JInodeVal),
     Drec(JDrecVal),
@@ -190,22 +252,14 @@ impl Value for ApfsValue {}
 impl LeafValue for ApfsValue {
     type Key = ApfsKey;
 
-    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
-        // Ok(Self::import(source)?)
-        Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
-    }
-}
-
-impl FsRecord {
-    fn import_record(key_cursor: &mut dyn Read, value_cursor: &mut dyn Read) -> io::Result<Self> {
-        let key = JKey::import(key_cursor)?;
-        let key_type = key.obj_id_and_type.r#type();
+    fn import(value_cursor: &mut dyn Read, key: &Self::Key) -> io::Result<Self> {
+        let key_type = key.key.obj_id_and_type.r#type();
         println!("Key type: {:?}", key);
         match key_type {
             JObjTypes::Inode => {
-                let value = JInodeVal::import(value_cursor).unwrap();
-                println!("Inode key: {:?}", JInodeKey::import(key_cursor).unwrap());
-                println!("Inode: {:?}", value);
+                let value = JInodeVal::import(value_cursor)?;
+                // println!("Inode key: {:?}", JInodeKey::import(value_cursor)?);
+                println!("Inode: {:?}", &value);
                 if value.xfields.len() > 0 {
                     let mut xfields_cursor = Cursor::new(&value.xfields);
                     let blob = XfBlob::import(&mut xfields_cursor)?;
@@ -266,18 +320,11 @@ impl FsRecord {
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::None,
-                    },
-                    value: ApfsValue::Inode(value),
-                });
+                return Ok(ApfsValue::Inode(value));
             },
             JObjTypes::DirRec => {
-                let subkey = JDrecHashedKey::import(key_cursor)?;
                 let value = JDrecVal::import(value_cursor)?;
-                println!("DirRec key: {:?}", &subkey);
+                // println!("DirRec key: {:?}", &key.subkey);
                 println!("DirRec: {:?}", &value);
                 if value.xfields.len() > 0 {
                     let mut xfields_cursor = Cursor::new(&value.xfields);
@@ -299,31 +346,17 @@ impl FsRecord {
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::DrecHashed(subkey),
-                    },
-                    value: ApfsValue::Drec(value),
-                });
+                return Ok(ApfsValue::Drec(value));
             },
             JObjTypes::Xattr => {
-                let subkey = JXattrKey::import(key_cursor).unwrap();
                 let value = JXattrVal::import(value_cursor).unwrap();
-                println!("Xattr key: {:?}", &subkey);
+                // println!("Xattr key: {:?}", &key.subkey);
                 println!("Xattr: {:?}", &value);
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::Name(subkey.name),
-                    },
-                    value: ApfsValue::Xattr(value),
-                });
+                return Ok(ApfsValue::Xattr(value));
             },
             JObjTypes::FileExtent => {
-                let subkey = JFileExtentKey::import(key_cursor)?;
                 let value = JFileExtentVal::import(value_cursor)?;
-                println!("FileExtent key: {:?}", &subkey);
+                // println!("FileExtent key: {:?}", &key.subkey);
                 println!("FileExtent: {:?}", &value);
                 // let length = sizes[&key.obj_id_and_type.id()] as usize;
                 // // let length = 12;
@@ -331,52 +364,25 @@ impl FsRecord {
                 // if let Ok(block) = apfs.load_block(Paddr(value.phys_block_num as i64)) {
                 //     println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
                 // }
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::FileExtent(subkey),
-                    },
-                    value: ApfsValue::FileExtent(value),
-                });
+                return Ok(ApfsValue::FileExtent(value));
             },
             JObjTypes::DstreamId => {
-                let subkey = JDstreamIdKey::import(key_cursor)?;
                 let value = JDstreamIdVal::import(value_cursor)?;
-                println!("DstreamId key: {:?}", &subkey);
+                // println!("DstreamId key: {:?}", &key.subkey);
                 println!("DstreamId: {:?}", &value);
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::None,
-                    },
-                    value: ApfsValue::DstreamId(value),
-                });
+                return Ok(ApfsValue::DstreamId(value));
             },
             JObjTypes::SiblingLink => {
-                let subkey = JSiblingKey::import(key_cursor)?;
                 let value = JSiblingVal::import(value_cursor)?;
-                println!("SiblingLink key: {:?}", &subkey);
+                // println!("SiblingLink key: {:?}", &key.subkey);
                 println!("SiblingLink: {:?}", &value);
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::SiblingLink(subkey),
-                    },
-                    value: ApfsValue::SiblingLink(value),
-                });
+                return Ok(ApfsValue::SiblingLink(value));
             },
             JObjTypes::SiblingMap => {
-                let subkey = JSiblingMapKey::import(key_cursor)?;
                 let value = JSiblingMapVal::import(value_cursor)?;
-                println!("SiblingMap key: {:?}", &subkey);
+                // println!("SiblingMap key: {:?}", &key.subkey);
                 println!("SiblingMap: {:?}", &value);
-                return Ok(FsRecord {
-                    key: ApfsKey {
-                        key: key,
-                        subkey: ApfsSubKey::None,
-                    },
-                    value: ApfsValue::SiblingMap(value),
-                });
+                return Ok(ApfsValue::SiblingMap(value));
             },
             _ => {
                 println!("Unsupported key type: {:?}!", key_type);
@@ -782,9 +788,14 @@ impl<V> Btree<V> where
                 };
                 records.push(record);
             } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
-                // if let Ok(record) = R::import_record(&mut key_cursor, &mut value_cursor) {
-                //     records.push(record);
-                // }
+                if let Ok(key) = V::Key::import(&mut key_cursor) {
+                    let value = V::import(&mut value_cursor, &key)?;
+                    let record = LeafRecord {
+                        key,
+                        value,
+                    };
+                    records.push(record);
+                }
             }
         }
         let node = BtreeNode {
