@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use std::io::Cursor;
@@ -237,9 +238,37 @@ impl<V> Record for LeafRecord<V> where
 pub type OmapRecord = LeafRecord<OmapVal>;
 
 #[derive(Debug)]
+pub enum InodeXdata {
+    SnapXid(Xid),
+    DeltaTreeOid(Oid),
+    DocumentId(u32),
+    Name(String),
+    PrevFsize(u64),
+    FinderInfo([u8; 32]),
+    Dstream(JDstream),
+}
+
+#[derive(Debug)]
+pub struct InodeValue {
+    value: JInodeVal,
+    pub xdata: HashMap<InoExtType, InodeXdata>,
+}
+
+#[derive(Debug)]
+pub enum DrecXdata {
+    SiblingId(u64),
+}
+
+#[derive(Debug)]
+pub struct DrecValue {
+    value: JDrecVal,
+    pub xdata: HashMap<DrecExtType, DrecXdata>,
+}
+
+#[derive(Debug)]
 pub enum ApfsValue {
-    Inode(JInodeVal),
-    Drec(JDrecVal),
+    Inode(InodeValue),
+    Drec(DrecValue),
     Xattr(JXattrVal),
     FileExtent(JFileExtentVal),
     DstreamId(JDstreamIdVal),
@@ -258,8 +287,8 @@ impl LeafValue for ApfsValue {
         match key_type {
             JObjTypes::Inode => {
                 let value = JInodeVal::import(value_cursor)?;
-                // println!("Inode key: {:?}", JInodeKey::import(value_cursor)?);
                 println!("Inode: {:?}", &value);
+                let mut xdata_map = HashMap::new();
                 if value.xfields.len() > 0 {
                     let mut xfields_cursor = Cursor::new(&value.xfields);
                     let blob = XfBlob::import(&mut xfields_cursor)?;
@@ -276,18 +305,21 @@ impl LeafValue for ApfsValue {
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let xvalue = Xid::import(&mut xvalue_cursor).unwrap();
                                 println!("Snapshot Txid: {:?}", xvalue);
+                                xdata_map.insert(field.r#type, InodeXdata::SnapXid(xvalue));
                             },
                             InoExtType::DeltaTreeOid => {
                                 assert_eq!(field.size, 8);
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let xvalue = Oid::import(&mut xvalue_cursor).unwrap();
                                 println!("Delta Tree OID: {:?}", xvalue);
+                                xdata_map.insert(field.r#type, InodeXdata::DeltaTreeOid(xvalue));
                             },
                             InoExtType::DocumentId => {
                                 assert_eq!(field.size, 4);
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let xvalue = xvalue_cursor.read_u32::<LittleEndian>().unwrap();
                                 println!("Document ID: {}", xvalue);
+                                xdata_map.insert(field.r#type, InodeXdata::DocumentId(xvalue));
                             },
                             InoExtType::Name => {
                                 // assert_eq!(field.size, 4);
@@ -295,18 +327,21 @@ impl LeafValue for ApfsValue {
                                 // let mut xvalue_cursor = Cursor::new(xdata);
                                 // let xvalue = xvalue_cursor.read_u32::<LittleEndian>().unwrap();
                                 println!("File name: {}", xvalue);
+                                xdata_map.insert(field.r#type, InodeXdata::Name(xvalue.to_owned()));
                             },
                             InoExtType::PrevFsize => {
                                 assert_eq!(field.size, 8);
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let xvalue = xvalue_cursor.read_u64::<LittleEndian>().unwrap();
                                 println!("Previous file size: {}", xvalue);
+                                xdata_map.insert(field.r#type, InodeXdata::PrevFsize(xvalue));
                             },
                             InoExtType::FinderInfo => {
                                 assert_eq!(field.size, 32);
                                 // let mut xvalue_cursor = Cursor::new(xdata);
                                 // let xvalue = Oid::import(&mut xvalue_cursor).unwrap();
                                 println!("FinderInfo: {:?}", xdata);
+                                xdata_map.insert(field.r#type, InodeXdata::FinderInfo(xdata[0..32].try_into().unwrap()));
                             },
                             InoExtType::Dstream => {
                                 // assert_eq!(field.size, 32);
@@ -314,18 +349,22 @@ impl LeafValue for ApfsValue {
                                 let xvalue = JDstream::import(&mut xvalue_cursor).unwrap();
                                 println!("Dstream: {:?}", &xvalue);
                                 // sizes.insert(key.obj_id_and_type.id(), xvalue.size);
+                                xdata_map.insert(field.r#type, InodeXdata::Dstream(xvalue));
                             },
                             _ => {},
                         }
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(ApfsValue::Inode(value));
+                return Ok(ApfsValue::Inode(InodeValue {
+                    value,
+                    xdata: xdata_map,
+                }));
             },
             JObjTypes::DirRec => {
                 let value = JDrecVal::import(value_cursor)?;
-                // println!("DirRec key: {:?}", &key.subkey);
                 println!("DirRec: {:?}", &value);
+                let mut xdata_map = HashMap::new();
                 if value.xfields.len() > 0 {
                     let mut xfields_cursor = Cursor::new(&value.xfields);
                     let blob = XfBlob::import(&mut xfields_cursor)?;
@@ -341,22 +380,24 @@ impl LeafValue for ApfsValue {
                                 let mut xvalue_cursor = Cursor::new(xdata);
                                 let sibling_id = xvalue_cursor.read_u64::<LittleEndian>().unwrap();
                                 println!("Sibling ID: {}", sibling_id);
+                                xdata_map.insert(field.r#type, DrecXdata::SiblingId(sibling_id));
                             }
                         }
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(ApfsValue::Drec(value));
+                return Ok(ApfsValue::Drec(DrecValue {
+                    value,
+                    xdata: xdata_map,
+                }));
             },
             JObjTypes::Xattr => {
                 let value = JXattrVal::import(value_cursor).unwrap();
-                // println!("Xattr key: {:?}", &key.subkey);
                 println!("Xattr: {:?}", &value);
                 return Ok(ApfsValue::Xattr(value));
             },
             JObjTypes::FileExtent => {
                 let value = JFileExtentVal::import(value_cursor)?;
-                // println!("FileExtent key: {:?}", &key.subkey);
                 println!("FileExtent: {:?}", &value);
                 // let length = sizes[&key.obj_id_and_type.id()] as usize;
                 // // let length = 12;
@@ -368,19 +409,16 @@ impl LeafValue for ApfsValue {
             },
             JObjTypes::DstreamId => {
                 let value = JDstreamIdVal::import(value_cursor)?;
-                // println!("DstreamId key: {:?}", &key.subkey);
                 println!("DstreamId: {:?}", &value);
                 return Ok(ApfsValue::DstreamId(value));
             },
             JObjTypes::SiblingLink => {
                 let value = JSiblingVal::import(value_cursor)?;
-                // println!("SiblingLink key: {:?}", &key.subkey);
                 println!("SiblingLink: {:?}", &value);
                 return Ok(ApfsValue::SiblingLink(value));
             },
             JObjTypes::SiblingMap => {
                 let value = JSiblingMapVal::import(value_cursor)?;
-                // println!("SiblingMap key: {:?}", &key.subkey);
                 println!("SiblingMap: {:?}", &value);
                 return Ok(ApfsValue::SiblingMap(value));
             },

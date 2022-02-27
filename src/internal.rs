@@ -1802,13 +1802,13 @@ impl XfBlob {
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, FromPrimitive)]
 pub enum DrecExtType {
     DrecExtTypeSiblingId = 1,
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, FromPrimitive)]
 pub enum InoExtType {
     SnapXid = 1,
     DeltaTreeOid = 2,
