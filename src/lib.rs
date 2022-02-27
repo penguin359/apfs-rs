@@ -130,7 +130,7 @@ use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
 
-use btree::{GenericRecord, Key, Value, Record};
+use btree::{GenericRecord, Key, Value, Record, LeafValue};
 use num_traits::FromPrimitive;
 
 pub use btree::{OmapRecord, ApfsKey, ApfsValue, FsRecord, AnyRecords};
@@ -220,7 +220,7 @@ impl APFS<File> {
         Ok(APFS { source, block_size: superblock.block_size as usize })
     }
 
-    pub fn load_btree<K: Key, V: Value, R: Record<K, V>>(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<K, V, R>> {
+    pub fn load_btree<V: LeafValue>(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<V>> {
         btree::Btree::load_btree(self, oid, r#type)
     }
 }

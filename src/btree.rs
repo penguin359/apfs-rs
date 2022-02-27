@@ -22,18 +22,17 @@ use crate::internal::JKey;
 
 use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
-pub trait Key : PartialOrd + Ord + PartialEq + Eq + Debug {
-}
-
-pub trait Value : Debug {
-}
-
-pub trait GenericKey : Key + Sized {
+pub trait Key : PartialOrd + Ord + PartialEq + Eq + Debug + Sized {
     fn import(source: &mut dyn Read) -> io::Result<Self>;
 }
 
-pub trait GenericValue : Value + Sized {
-    fn import(source: &mut dyn Read) -> io::Result<Self>;
+pub trait Value : Debug + Sized {
+}
+
+pub trait LeafValue : Value {
+    type Key: Key;
+
+    fn import(source: &mut dyn Read, key: &Self::Key) -> io::Result<Self>;
 }
 
 /* Object map keys match on the object ID equality and
@@ -67,19 +66,17 @@ impl Eq for OmapKey {
 }
 
 impl Key for OmapKey {
-}
-
-impl GenericKey for OmapKey {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self::import(source)?)
     }
 }
 
-impl Value for OmapVal {
-}
+impl Value for OmapVal {}
 
-impl GenericValue for OmapVal {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+impl LeafValue for OmapVal {
+    type Key = OmapKey;
+
+    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
         Ok(Self::import(source)?)
     }
 }
@@ -132,47 +129,87 @@ impl Eq for ApfsKey {
 }
 
 impl Key for ApfsKey {
-}
-
-impl GenericKey for ApfsKey {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         // Ok(Self::import(source)?)
         Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
     }
 }
 
-pub trait Record<K: Key, V>: Debug + Sized {
-    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self>;
-    fn key(&self) -> &K;
-    fn value(&self) -> &V;
+pub trait Record: Debug {
+    // type RKey = <<Self as Record>::RValue as Value>::Key;
+    type Key: Key;
+    type Value: Value;
+
+    /*
+    fn import_key(key_data: &mut dyn Read) -> io::Result<Self::RKey> {
+        Self::RKey::import(key_data)
+    }
+
+    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            key: Self::RKey::import(key)?,
+            value: Self::RValue::import(value)?,
+        })
+    }
+    */
+
+    fn key(&self) -> &Self::Key;
+
+    fn value(&self) -> &Self::Value;
+}
+
+#[derive(Debug)]
+pub struct LeafRecord<V> where
+    V: LeafValue {
+
+    pub key: V::Key,
+    pub value: V,
+}
+
+impl<V> Record for LeafRecord<V> where
+    V: LeafValue {
+    type Key = V::Key;
+    type Value = V;
+
+    fn key(&self) -> &Self::Key {
+        &self.key
+    }
+
+    fn value(&self) -> &Self::Value {
+        &self.value
+    }
 }
 
 #[derive(Debug)]
 pub struct GenericRecord<K, V> where
-    K: GenericKey,
-    V: GenericValue {
+    K: Key,
+    V: Value {
     pub key: K,
     pub value: V,
 }
 
-impl<K: GenericKey, V: GenericValue> Record<K, V> for GenericRecord<K, V> {
+// impl<K: Key, V: Value> Record for GenericRecord<K, V> {
+//     type RValue = V;
+
+    /*
     fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             key: K::import(key)?,
             value: V::import(value)?,
         })
     }
+    */
 
-    fn key(&self) -> &K {
-        &self.key
-    }
+//     fn key(&self) -> &K {
+//         &self.key
+//     }
 
-    fn value(&self) -> &V {
-        &self.value
-    }
-}
+//     fn value(&self) -> &V {
+//         &self.value
+//     }
+// }
 
-pub type OmapRecord = GenericRecord<OmapKey, OmapVal>;
+pub type OmapRecord = LeafRecord<OmapVal>;
 
 #[derive(Debug)]
 pub struct FsRecord {
@@ -191,10 +228,21 @@ pub enum ApfsValue {
     SiblingMap(JSiblingMapVal),
 }
 
-impl Value for ApfsValue {
+impl Value for ApfsValue {}
+
+impl LeafValue for ApfsValue {
+    type Key = ApfsKey;
+
+    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
+        // Ok(Self::import(source)?)
+        Err(io::Error::new(io::ErrorKind::Other, "not implemented"))
+    }
 }
 
-impl Record<ApfsKey, ApfsValue> for FsRecord {
+impl FsRecord {
+    // type RKey = ApfsKey;
+    // type RValue = ApfsValue;
+
     fn import_record(key_cursor: &mut dyn Read, value_cursor: &mut dyn Read) -> io::Result<Self> {
         let key = JKey::import(key_cursor)?;
         let key_type = key.obj_id_and_type.r#type();
@@ -584,7 +632,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::<OmapKey, OmapVal, OmapRecord>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         let records: Vec<OmapRecord> = match btree.root.records {
@@ -603,7 +651,7 @@ mod test {
     fn test_load_object_map_btree_dummy() {
         let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
         let mut apfs = APFS { source, block_size: 4096 };
-        let btree_result = Btree::<OmapKey, OmapVal, OmapRecord>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         let records: Vec<OmapRecord> = match btree.root.records {
@@ -656,7 +704,7 @@ mod test {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = Btree::<OmapKey, OmapVal, OmapRecord>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let btree = btree_result.unwrap();
         assert_ne!(superblock.body.fs_oid[0], Oid(0));
@@ -694,24 +742,22 @@ mod test {
 // }
 
 #[derive(Debug)]
-pub enum AnyRecords<K: Key, V: Value, R: Record<K, V>> {
-    Leaf(Vec<R>),
-    NonLeaf(Vec<NonLeafRecord<K>>, PhantomData<K>, PhantomData<V>),
+pub enum AnyRecords<V: LeafValue> {
+    Leaf(Vec<LeafRecord<V>>),
+    NonLeaf(Vec<NonLeafRecord<V::Key>>, PhantomData<V>),
 }
 
 #[derive(Debug)]
-pub struct Btree<K: Key, V: Value, R: Record<K, V>> {
+pub struct Btree<V: LeafValue> {
     info: BtreeInfo,
-    pub root: BtreeNode<K, V, R>,
-    _k: PhantomData<K>,
+    pub root: BtreeNode<V>,
     _v: PhantomData<V>,
 }
 
 #[derive(Debug)]
-pub struct BtreeNode<K: Key, V: Value, R: Record<K, V>> {
+pub struct BtreeNode<V: LeafValue> {
     node: BtreeNodeObject,
-    pub records: AnyRecords<K, V, R>,
-    _k: PhantomData<K>,
+    pub records: AnyRecords<V>,
     _v: PhantomData<V>,
 }
 
@@ -720,15 +766,13 @@ enum BtreeRawObject {
     BtreeNonRoot(BtreeNodeObject),
 }
 
-enum BtreeDecodedObject<K: Key, V: Value, R: Record<K, V>> {
-    BtreeRoot(BtreeNode<K, V, R>, BtreeInfo),
-    BtreeNonRoot(BtreeNode<K, V, R>),
+enum BtreeDecodedObject<V: LeafValue> {
+    BtreeRoot(BtreeNode<V>, BtreeInfo),
+    BtreeNonRoot(BtreeNode<V>),
 }
 
-impl<K, V, R> Btree<K, V, R> where
-    K: Key,
-    V: Value,
-    R: Record<K, V> {
+impl<V> Btree<V> where
+    V: LeafValue {
     fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
         let object = apfs.load_object_oid(oid, r#type)?;
         let mut body = match object {
@@ -740,7 +784,7 @@ impl<K, V, R> Btree<K, V, R> where
         Ok(BtreeRawObject::BtreeRoot(body, info))
     }
 
-    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<K, V, R>> {
+    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<V>> {
         let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
             _ => { unreachable!() },
@@ -784,26 +828,31 @@ impl<K, V, R> Btree<K, V, R> where
             let mut key_cursor = Cursor::new(key_data);
             let mut value_cursor = Cursor::new(val_data);
             if body.header.subtype.r#type() == ObjectType::Omap  {
-                let record = R::import_record(&mut key_cursor, &mut value_cursor)?;
+                let key = V::Key::import(&mut key_cursor)?;
+                let value = V::import(&mut value_cursor, &key)?;
+                let record = LeafRecord {
+                    key,
+                    value,
+                };
                 records.push(record);
             } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
-                if let Ok(record) = R::import_record(&mut key_cursor, &mut value_cursor) {
-                    records.push(record);
-                }
+                // if let Ok(record) = R::import_record(&mut key_cursor, &mut value_cursor) {
+                //     records.push(record);
+                // }
             }
         }
         let node = BtreeNode {
-            node: body, records: AnyRecords::Leaf(records), _k: PhantomData, _v: PhantomData
+            node: body, records: AnyRecords::Leaf(records), _v: PhantomData
         };
         Ok(BtreeDecodedObject::BtreeRoot(node, info))
     }
 
-    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<K, V, R>> {
+    pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<V>> {
         let (root, info) = match Self::load_btree_node(apfs, oid, r#type)? {
             BtreeDecodedObject::BtreeRoot(body, info) => (body, info),
             _ => { unreachable!() },
         };
-        Ok(Btree { info, root, _k: PhantomData, _v: PhantomData })
+        Ok(Btree { info, root, _v: PhantomData })
     }
 
     pub fn get_record(&self, key: OmapKey) -> io::Result<OmapRecord> {

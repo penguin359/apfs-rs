@@ -30,7 +30,7 @@ fn main() {
         APFSObject::ObjectMap(x) => x,
         _ => { panic!("Wrong object type!"); },
     };
-    let btree_result = apfs.load_btree::<OmapKey, OmapVal, OmapRecord>(omap.body.tree_oid, StorageType::Physical);
+    let btree_result = apfs.load_btree::<OmapVal>(omap.body.tree_oid, StorageType::Physical);
     if btree_result.is_err() {
         println!("Error: {:?}", btree_result.as_ref().err());
     }
@@ -53,7 +53,7 @@ fn main() {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_btree::<OmapKey, OmapVal, OmapRecord>(omap.body.tree_oid, StorageType::Physical);
+        let btree_result = apfs.load_btree::<OmapVal>(omap.body.tree_oid, StorageType::Physical);
         if btree_result.is_err() {
             println!("Error: {:?}", btree_result.as_ref().err());
         }
@@ -70,7 +70,7 @@ fn main() {
                 continue;
             }
             // let object = apfs.load_object_addr(record.value.paddr).unwrap();
-            let root_tree_result = apfs.load_btree::<ApfsKey, ApfsValue, FsRecord>(Oid(record.value.paddr.0 as u64), StorageType::Physical);
+            let root_tree_result = apfs.load_btree::<ApfsValue>(Oid(record.value.paddr.0 as u64), StorageType::Physical);
             if root_tree_result.is_err() {
                 println!("Error: {:?}", root_tree_result.as_ref().err());
             }
