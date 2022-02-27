@@ -136,22 +136,8 @@ impl Key for ApfsKey {
 }
 
 pub trait Record: Debug {
-    // type RKey = <<Self as Record>::RValue as Value>::Key;
     type Key: Key;
     type Value: Value;
-
-    /*
-    fn import_key(key_data: &mut dyn Read) -> io::Result<Self::RKey> {
-        Self::RKey::import(key_data)
-    }
-
-    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self> {
-        Ok(Self {
-            key: Self::RKey::import(key)?,
-            value: Self::RValue::import(value)?,
-        })
-    }
-    */
 
     fn key(&self) -> &Self::Key;
 
@@ -179,35 +165,6 @@ impl<V> Record for LeafRecord<V> where
         &self.value
     }
 }
-
-#[derive(Debug)]
-pub struct GenericRecord<K, V> where
-    K: Key,
-    V: Value {
-    pub key: K,
-    pub value: V,
-}
-
-// impl<K: Key, V: Value> Record for GenericRecord<K, V> {
-//     type RValue = V;
-
-    /*
-    fn import_record(key: &mut dyn Read, value: &mut dyn Read) -> io::Result<Self> {
-        Ok(Self {
-            key: K::import(key)?,
-            value: V::import(value)?,
-        })
-    }
-    */
-
-//     fn key(&self) -> &K {
-//         &self.key
-//     }
-
-//     fn value(&self) -> &V {
-//         &self.value
-//     }
-// }
 
 pub type OmapRecord = LeafRecord<OmapVal>;
 
@@ -240,9 +197,6 @@ impl LeafValue for ApfsValue {
 }
 
 impl FsRecord {
-    // type RKey = ApfsKey;
-    // type RValue = ApfsValue;
-
     fn import_record(key_cursor: &mut dyn Read, value_cursor: &mut dyn Read) -> io::Result<Self> {
         let key = JKey::import(key_cursor)?;
         let key_type = key.obj_id_and_type.r#type();
@@ -429,14 +383,6 @@ impl FsRecord {
             },
         }
         return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized node type"));
-    }
-
-    fn key(&self) -> &ApfsKey {
-        &self.key
-    }
-
-    fn value(&self) -> &ApfsValue {
-        &self.value
     }
 }
 

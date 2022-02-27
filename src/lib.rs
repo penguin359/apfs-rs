@@ -130,7 +130,7 @@ use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
 
-use btree::{GenericRecord, Key, Value, Record, LeafValue};
+use btree::{Key, Value, Record, LeafValue};
 use num_traits::FromPrimitive;
 
 pub use btree::{OmapRecord, ApfsKey, ApfsValue, FsRecord, AnyRecords};
