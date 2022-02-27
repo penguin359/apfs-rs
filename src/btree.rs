@@ -433,6 +433,12 @@ pub struct OidValue {
     oid: Oid,
 }
 
+impl OidValue {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(OidValue { oid: Oid::import(source)? })
+    }
+}
+
 impl Value for OidValue {}
 
 #[derive(Debug)]
@@ -793,6 +799,7 @@ impl<V> Btree<V> where
         let mut items = vec![];
         assert!(body.body.flags.contains(BtnFlags::LEAF));
         let mut records = vec![];
+        let mut nrecords = vec![];
         // let mut sizes = HashMap::<u64, u64>::new();
         for _ in 0..body.body.nkeys {
             let kvloc = if(body.body.flags.contains(BtnFlags::FIXED_KV_SIZE)) {
@@ -815,27 +822,40 @@ impl<V> Btree<V> where
             let val_data = &body.body.data[(body.body.data.len() as u16 - kvloc.v.off) as usize..(body.body.data.len() as u16 -  kvloc.v.off + kvloc.v.len) as usize];
             let mut key_cursor = Cursor::new(key_data);
             let mut value_cursor = Cursor::new(val_data);
-            if body.header.subtype.r#type() == ObjectType::Omap  {
-                let key = V::Key::import(&mut key_cursor)?;
-                let value = V::import(&mut value_cursor, &key)?;
-                let record = LeafRecord {
-                    key,
-                    value,
-                };
-                records.push(record);
-            } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
-                if let Ok(key) = V::Key::import(&mut key_cursor) {
+            let key = V::Key::import(&mut key_cursor)?;
+            if body.body.flags.contains(BtnFlags::LEAF) {
+                if body.header.subtype.r#type() == ObjectType::Omap  {
                     let value = V::import(&mut value_cursor, &key)?;
                     let record = LeafRecord {
                         key,
                         value,
                     };
                     records.push(record);
+                } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
+                    if let Ok(key) = V::Key::import(&mut key_cursor) {
+                        let value = V::import(&mut value_cursor, &key)?;
+                        let record = LeafRecord {
+                            key,
+                            value,
+                        };
+                        records.push(record);
+                    }
                 }
+            } else {
+                nrecords.push(NonLeafRecord {
+                    key,
+                    value: OidValue::import(&mut value_cursor)?,
+                });
             }
         }
-        let node = BtreeNode {
-            node: body, records: AnyRecords::Leaf(records), _v: PhantomData
+        let node = if body.body.flags.contains(BtnFlags::LEAF) {
+            BtreeNode {
+                node: body, records: AnyRecords::Leaf(records), _v: PhantomData
+            }
+        } else {
+            BtreeNode {
+                node: body, records: AnyRecords::NonLeaf(nrecords, PhantomData), _v: PhantomData
+            }
         };
         Ok(BtreeDecodedObject::BtreeRoot(node, info))
     }
