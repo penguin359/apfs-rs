@@ -21,3 +21,5 @@ Remove all unwrap
 
 Preserve safe, unknown Flags
 Support unknown read-only flags?
+
+Check for panics on slices. Don't let it happen, but return error instead.

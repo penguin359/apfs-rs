@@ -686,6 +686,29 @@ mod test {
     }
 
     #[test]
+    fn test_load_non_leaf_object_map_btree() {
+        let mut source = File::open(&test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        let records = match btree.root.records {
+            AnyRecords::NonLeaf(x, _) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 85);
+        assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
+        assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
+        assert_eq!(records[0].value.oid, Oid(0x107ab1), "value oid");
+        assert_eq!(records[1].key.oid, Oid(0x2eda), "key oid");
+        assert_eq!(records[1].key.xid, Xid(0x6), "key xid");
+        assert_eq!(records[1].value.oid, Oid(0x148050), "value oid");
+        assert_eq!(records[2].key.oid, Oid(0x5807), "key oid");
+        assert_eq!(records[2].key.xid, Xid(0x8de0ea), "key xid");
+        assert_eq!(records[2].value.oid, Oid(0x1447ea), "value oid");
+    }
+
+    #[test]
     fn test_load_volume_superblock() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
         let object = apfs.load_object_addr(Paddr(0)).unwrap();
@@ -811,7 +834,11 @@ impl<V> Btree<V> where
                     },
                     v: Nloc {
                         off: kvoff.v,
-                        len: info.fixed.key_size as u16,
+                        len: if body.body.flags.contains(BtnFlags::LEAF) {
+                            info.fixed.key_size as u16
+                        } else {
+                            8  // Length of OidValue
+                        },
                     },
                 }
             } else {
