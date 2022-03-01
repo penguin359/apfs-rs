@@ -790,14 +790,14 @@ impl<V> Btree<V> where
         // if !body.body.flags.contains(BtnFlags::FIXED_KV_SIZE) {
         //     return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree flag combination"));
         // }
-        if !body.body.flags.contains(BtnFlags::LEAF) {
-            return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree node"));
-        }
+        //if !body.body.flags.contains(BtnFlags::LEAF) {
+        //    return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree node"));
+        //}
         let info = info.unwrap();
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
         let mut cursor = Cursor::new(toc);
         let mut items = vec![];
-        assert!(body.body.flags.contains(BtnFlags::LEAF));
+        //assert!(body.body.flags.contains(BtnFlags::LEAF));
         let mut records = vec![];
         let mut nrecords = vec![];
         // let mut sizes = HashMap::<u64, u64>::new();
