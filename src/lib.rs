@@ -227,6 +227,7 @@ impl APFS<File> {
 
 impl<S: Read + Seek> APFS<S> {
     pub fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
+        println!("Loading block {}", addr.0);
         let mut block = vec![0; self.block_size];
         self.source.seek(SeekFrom::Start((addr.0 as u64) * self.block_size as u64))?;
         self.source.read_exact(&mut block)?;
