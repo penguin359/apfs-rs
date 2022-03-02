@@ -1391,6 +1391,10 @@ impl JObjectIdAndType {
         Ok(Self(value))
     }
 
+    pub fn new_by_field(r#type: JObjTypes, value: u64) -> Self {
+        Self((value & OBJ_ID_MASK) | ((r#type as u64) << OBJ_TYPE_SHIFT))
+    }
+
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Self::new(source.read_u64::<LittleEndian>()?)
     }

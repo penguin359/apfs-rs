@@ -461,3 +461,27 @@ fn test_load_object_map_btree_mock() {
     assert_eq!(info.key_count, 6, "key count");
     assert_eq!(info.node_count, 6, "node count");
 }
+
+#[test]
+fn test_create_new_jkey() {
+    let key = JObjectIdAndType::new_by_field(JObjTypes::Any, 0);
+    assert_eq!(key.0, 0);
+    assert_eq!(key.r#type(), JObjTypes::Any);
+    assert_eq!(key.id(), 0);
+    let key = JObjectIdAndType::new_by_field(JObjTypes::Inode, 0);
+    assert_eq!(key.0, 3 << 60);
+    assert_eq!(key.r#type(), JObjTypes::Inode);
+    assert_eq!(key.id(), 0);
+    let key = JObjectIdAndType::new_by_field(JObjTypes::Any, 4294);
+    assert_eq!(key.0, 4294);
+    assert_eq!(key.r#type(), JObjTypes::Any);
+    assert_eq!(key.id(), 4294);
+    let key = JObjectIdAndType::new_by_field(JObjTypes::DirRec, 4294);
+    assert_eq!(key.0, (9 << 60) | 4294);
+    assert_eq!(key.r#type(), JObjTypes::DirRec);
+    assert_eq!(key.id(), 4294);
+    let key = JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 3 << 59);
+    assert_eq!(key.0, (12 << 60) | (1 << 59));
+    assert_eq!(key.r#type(), JObjTypes::SiblingMap);
+    assert_eq!(key.id(), 1 << 59);
+}

@@ -26,11 +26,27 @@
 			"problemMatcher": [
 				"$rustc"
 			],
+			// "group": {
+			// 	"kind": "build",
+			// 	"isDefault": true
+			// },
+			"group": "build",
+			"label": "rust: cargo check"
+		},
+		{
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"test"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
-			"label": "rust: cargo check"
+			"label": "rust: cargo test"
 		},
 	]
 }
