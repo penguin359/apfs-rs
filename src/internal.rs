@@ -377,11 +377,11 @@ impl NxSuperblock {
             block_count: source.read_u64::<LittleEndian>()?,
 
             features: SuperblockFeatureFlags::from_bits(source.read_u64::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown feature flags"))?,
             readonly_compatible_features: SuperblockRocompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown read-only flags"))?,
             incompatible_features: SuperblockIncompatFlags::from_bits(source.read_u64::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown incompatible flags"))?,
 
             uuid: import_uuid(source)?,
 
@@ -1006,7 +1006,7 @@ impl BtreeNodePhys {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = Self {
             flags: BtnFlags::from_bits(source.read_u16::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown btn flags"))?,
             level: source.read_u16::<LittleEndian>()?,
             nkeys: source.read_u32::<LittleEndian>()?,
             table_space: Nloc::import(source)?,
@@ -1045,9 +1045,10 @@ pub struct BtreeInfoFixed {
 
 impl BtreeInfoFixed {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let flags = source.read_u32::<LittleEndian>()?;
         Ok(Self {
-            flags: BtFlags::from_bits(source.read_u32::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
+            flags: BtFlags::from_bits(flags)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown bt flags: 0x{:08X}", flags)))?,
             node_size: source.read_u32::<LittleEndian>()?,
             key_size: source.read_u32::<LittleEndian>()?,
             val_size: source.read_u32::<LittleEndian>()?,
