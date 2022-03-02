@@ -532,6 +532,65 @@ fn test_load_non_leaf_object_map_btree() {
 }
 
 #[test]
+fn test_load_non_root_object_map_btree() {
+    let mut buffer = [0u8; 4096];
+    let mut file = File::open(test_dir().join("object-map-nonroot-nonleaf.blob")).unwrap();
+    file.read_exact(&mut buffer).unwrap();
+    let mut cursor = Cursor::new(&buffer[..]);
+    let header = ObjPhys::import(&mut cursor).expect("failed to decoded object header");
+    let node = BtreeNodePhys::import(&mut cursor).expect("failed to decoded b-tree header");
+    assert_eq!(header.cksum, fletcher64(&buffer[8..]), "bad checksum");
+    assert_eq!(header.oid, Oid(0x107ab1), "oid");
+    assert_eq!(header.xid, Xid(0x95fc62), "xid");
+    assert_eq!(header.r#type.r#type(), ObjectType::BtreeNode, "type");
+    assert_eq!(header.r#type.storage(), StorageType::Physical, "storage");
+    assert_eq!(header.subtype.r#type(), ObjectType::Omap, "subtype");
+    assert_eq!(node.flags, BtnFlags::FIXED_KV_SIZE, "flags");
+    assert_eq!(node.level, 1, "level");
+    assert_eq!(node.nkeys, 123, "nkeys");
+    assert_eq!(node.table_space.off, 0, "table space off");
+    assert_eq!(node.table_space.len, 0x0240, "table space len");
+    assert_eq!(node.free_space.off, 0x8f0, "free space off");
+    assert_eq!(node.free_space.len, 0x20, "free space len");
+    assert_eq!(node.key_free_list.off, 0x740, "key free list off");
+    assert_eq!(node.key_free_list.len, 0x140, "key free list len");
+    assert_eq!(node.val_free_list.off, 0x3a8, "val free list off");
+    assert_eq!(node.val_free_list.len, 0xa0, "val free list len");
+    let mut cursor = Cursor::new(&node.data[..]);
+    let mut entries = Vec::new();
+    for _ in 0..node.table_space.len/4 {
+        entries.push(KVoff::import(&mut cursor).unwrap());
+    }
+    assert_eq!(entries[0].k, 0, "table entry 0 key off");
+    assert_eq!(entries[0].v, 0x8, "table entry 0 val off");
+    assert_eq!(entries[1].k, 0x850, "table entry 1 key off");
+    assert_eq!(entries[1].v, 0x430, "table entry 1 val off");
+    assert_eq!(entries[2].k, 0x20, "table entry 2 key off");
+    assert_eq!(entries[2].v, 0x18, "table entry 2 val off");
+    let mut cursor = Cursor::new(&node.data[node.table_space.len as usize + entries[0].k as usize..]);
+    let key = OmapKey::import(&mut cursor).unwrap();
+    let mut cursor = Cursor::new(&node.data[node.data.len()-entries[0].v as usize..node.data.len()]);
+    let value = Oid::import(&mut cursor).unwrap();
+    assert_eq!(key.oid, Oid(0x404), "key oid");
+    assert_eq!(key.xid, Xid(0x95d8c3), "key xid");
+    assert_eq!(value.0, 0x107cfc, "value oid");
+    let mut cursor = Cursor::new(&node.data[node.table_space.len as usize + entries[1].k as usize..]);
+    let key = OmapKey::import(&mut cursor).unwrap();
+    let mut cursor = Cursor::new(&node.data[node.data.len()-entries[1].v as usize..node.data.len()]);
+    let value = Oid::import(&mut cursor).unwrap();
+    assert_eq!(key.oid, Oid(0x440), "key oid");
+    assert_eq!(key.xid, Xid(0xb93e), "key xid");
+    assert_eq!(value.0, 0x12c32f, "value oid");
+    let mut cursor = Cursor::new(&node.data[node.table_space.len as usize + entries[2].k as usize..]);
+    let key = OmapKey::import(&mut cursor).unwrap();
+    let mut cursor = Cursor::new(&node.data[node.data.len()-entries[2].v as usize..node.data.len()]);
+    let value = Oid::import(&mut cursor).unwrap();
+    assert_eq!(key.oid, Oid(0x4a0), "key oid");
+    assert_eq!(key.xid, Xid(0xb93e), "key xid");
+    assert_eq!(value.0, 0x14bff0, "value oid");
+}
+
+#[test]
 fn test_create_new_jkey() {
     let key = JObjectIdAndType::new_by_field(JObjTypes::Any, 0);
     assert_eq!(key.0, 0);
