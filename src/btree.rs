@@ -101,15 +101,20 @@ pub struct ApfsKey {
    a transaction ID that is less than or equal */
 impl Ord for ApfsKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        // let order = self.oid.cmp(&other.oid);
-        // match order {
-        //     Ordering::Equal => match self.xid.cmp(&other.xid) {
-        //         Ordering::Less => Ordering::Less,
-        //         _ => Ordering::Equal,
-        //     },
-        //     _ => order,
-        // }
-        Ordering::Equal
+        let order = self.key.obj_id_and_type.id().cmp(&other.key.obj_id_and_type.id());
+        match order {
+            Ordering::Equal => {
+                let order = (self.key.obj_id_and_type.r#type() as u64).cmp(&(other.key.obj_id_and_type.r#type() as u64));
+                match order {
+                    Ordering::Equal => match (&self.subkey, &other.subkey) {
+                        (ApfsSubKey::Name(ref left), ApfsSubKey::Name(ref right)) => left.cmp(right),
+                        _ => Ordering::Equal,
+                    },
+                    _ => order,
+                }
+            },
+            _ => order,
+        }
     }
 }
 
@@ -161,12 +166,6 @@ impl Key for ApfsKey {
             JObjTypes::FileExtent => {
                 let subkey = JFileExtentKey::import(key_cursor)?;
                 println!("FileExtent key: {:?}", &subkey);
-                // let length = sizes[&key.obj_id_and_type.id()] as usize;
-                // // let length = 12;
-                // println!("Reading block: {} ({} bytes)", value.phys_block_num, length);
-                // if let Ok(block) = apfs.load_block(Paddr(value.phys_block_num as i64)) {
-                //     println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
-                // }
                 return Ok(ApfsKey {
                     key: key,
                     subkey: ApfsSubKey::FileExtent(subkey),
@@ -533,61 +532,91 @@ mod test {
         assert_ne!(key3, key4);
     }
 
-    // #[test]
-    // fn test_volume_object_key_ordering() {
-    //     let key1 = JInodeKey {
-    //         oid: Oid(23),
-    //         xid: Xid(17),
-    //     };
-    //     let key2 = OmapKey {
-    //         oid: Oid(23),
-    //         xid: Xid(17),
-    //     };
-    //     let key_oid_less = OmapKey {
-    //         oid: Oid(21),
-    //         xid: Xid(17),
-    //     };
-    //     let key_oid_greater = OmapKey {
-    //         oid: Oid(25),
-    //         xid: Xid(17),
-    //     };
-    //     let key_xid_less = OmapKey {
-    //         oid: Oid(23),
-    //         xid: Xid(16),
-    //     };
-    //     let key_xid_greater = OmapKey {
-    //         oid: Oid(23),
-    //         xid: Xid(18),
-    //     };
-    //     let key_oid_less_xid_less = OmapKey {
-    //         oid: Oid(21),
-    //         xid: Xid(16),
-    //     };
-    //     let key_oid_greater_xid_less = OmapKey {
-    //         oid: Oid(25),
-    //         xid: Xid(16),
-    //     };
-    //     let key_oid_less_xid_greater = OmapKey {
-    //         oid: Oid(21),
-    //         xid: Xid(18),
-    //     };
-    //     let key_oid_greater_xid_greater = OmapKey {
-    //         oid: Oid(25),
-    //         xid: Xid(18),
-    //     };
-    //     assert_eq!(key1.cmp(&key2), Ordering::Equal);
-    //     assert_eq!(key1.cmp(&key_oid_less), Ordering::Greater);
-    //     assert_eq!(key1.cmp(&key_oid_greater), Ordering::Less);
-    //     /* Matching keys have same Oid and and Xid less than or equal */
-    //     assert_eq!(key1.cmp(&key_xid_less), Ordering::Equal);
-    //     assert_eq!(key1.cmp(&key_xid_greater), Ordering::Less);
-    //     assert_eq!(key1.cmp(&key_oid_less_xid_less), Ordering::Greater);
-    //     assert_eq!(key1.cmp(&key_oid_less_xid_greater), Ordering::Greater);
-    //     assert_eq!(key1.cmp(&key_oid_greater_xid_less), Ordering::Less);
-    //     assert_eq!(key1.cmp(&key_oid_greater_xid_greater), Ordering::Less);
-    // }
+    #[test]
+    // #[ignore = "test failing, developing smaller, more focused tests first"]
+    fn test_volume_object_key_ordering() {
+        let key1 = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key2 = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_id_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 300), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_id_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 650), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 500), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 500), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_less_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_object_id_greater_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_object_id_less_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_greater_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_less_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 271), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_greater_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 749), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_less_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 271), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_greater_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 749), },
+            subkey: ApfsSubKey::None,
+        };
+        assert_eq!(key1.cmp(&key2), Ordering::Equal);
+        assert_eq!(key1.cmp(&key_object_id_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_type_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_type_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_name_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_name_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_less_name_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_less_name_greater), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater_name_less), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_greater_name_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_less_type_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_less_type_greater), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater_type_less), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_greater_type_greater), Ordering::Less);
+    }
 
-    use crate::tests::test_dir;
+    use crate::{tests::test_dir, JObjectIdAndType};
 
     #[test]
     fn test_load_object_map() {
