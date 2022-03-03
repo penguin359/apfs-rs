@@ -133,7 +133,7 @@ use std::path::Path;
 use btree::{Key, Value, Record, LeafValue};
 use num_traits::FromPrimitive;
 
-pub use btree::{OmapRecord, ApfsKey, ApfsValue, LeafRecord, AnyRecords, InodeXdata};
+pub use btree::{Btree, OmapRecord, ApfsKey, ApfsValue, LeafRecord, NonLeafRecord, AnyRecords, InodeXdata};
 
 #[macro_use]
 mod int_strings;

@@ -429,7 +429,7 @@ impl LeafValue for ApfsValue {
 
 #[derive(Debug)]
 pub struct OidValue {
-    oid: Oid,
+    pub oid: Oid,
 }
 
 impl OidValue {
@@ -443,7 +443,7 @@ impl Value for OidValue {}
 #[derive(Debug)]
 pub struct NonLeafRecord<K: Key> {
     key: K,
-    value: OidValue,
+    pub value: OidValue,
 }
 
 #[cfg(test)]
@@ -931,7 +931,7 @@ impl<V> Btree<V> where
         Ok(node)
     }
 
-    fn load_btree_node<S: Read + Seek>(&self, apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeNode<V>> {
+    pub fn load_btree_node<S: Read + Seek>(&self, apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeNode<V>> {
         let body = match Self::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeNonRoot(body) => body,
             _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Root node as a descendent in tree")); },
