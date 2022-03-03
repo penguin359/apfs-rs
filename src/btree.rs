@@ -738,6 +738,36 @@ mod test {
     }
 
     #[test]
+    fn test_load_non_root_object_map_btree() {
+        let mut source = File::open(&test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        let btree = btree_result.unwrap();
+        let mut source = File::open(&test_dir().join("object-map-nonroot-nonleaf.blob")).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let node_result = btree.load_btree_node(&mut apfs, Oid(0), StorageType::Physical);
+        if node_result.is_err() {
+            println!("Error: {:?}", node_result.as_ref().err());
+        }
+        assert!(node_result.is_ok(), "Bad b-tree node load");
+        let node = node_result.unwrap();
+        let records = match node.records {
+            AnyRecords::NonLeaf(x, _) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 123);
+        assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
+        assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
+        assert_eq!(records[0].value.oid, Oid(0x107cfc), "value oid");
+        assert_eq!(records[1].key.oid, Oid(0x440), "key oid");
+        assert_eq!(records[1].key.xid, Xid(0xb93e), "key xid");
+        assert_eq!(records[1].value.oid, Oid(0x12c32f), "value oid");
+        assert_eq!(records[2].key.oid, Oid(0x4a0), "key oid");
+        assert_eq!(records[2].key.xid, Xid(0xb93e), "key xid");
+        assert_eq!(records[2].value.oid, Oid(0x14bff0), "value oid");
+    }
+
+    #[test]
     fn test_load_volume_superblock() {
         let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
         let object = apfs.load_object_addr(Paddr(0)).unwrap();
@@ -812,47 +842,32 @@ enum BtreeRawObject {
     BtreeNonRoot(BtreeNodeObject),
 }
 
-enum BtreeDecodedObject<V: LeafValue> {
-    BtreeRoot(BtreeNode<V>, BtreeInfo),
-    BtreeNonRoot(BtreeNode<V>),
-}
-
 impl<V> Btree<V> where
     V: LeafValue {
     fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
         let object = apfs.load_object_oid(oid, r#type)?;
-        let mut body = match object {
-            APFSObject::Btree(x) => x,
+        let body = match object {
+            APFSObject::Btree(mut body) => {
+                let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
+                body.body.data.truncate(body.body.data.len()-40);
+                BtreeRawObject::BtreeRoot(body, info)
+            },
+            APFSObject::BtreeNode(body) => BtreeRawObject::BtreeNonRoot(body),
             _ => { panic!("Invalid type"); },
         };
-        let info = BtreeInfo::import(&mut Cursor::new(&body.body.data[body.body.data.len()-40..]))?;
-        body.body.data.truncate(body.body.data.len()-40);
-        Ok(BtreeRawObject::BtreeRoot(body, info))
+        Ok(body)
     }
 
-    fn load_btree_node<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeDecodedObject<V>> {
-        let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
-            BtreeRawObject::BtreeRoot(body, info) => (body, Some(info)),
-            _ => { unreachable!() },
-        };
+    fn decode_btree_node(body: BtreeNodeObject, info: &BtreeInfo) -> io::Result<BtreeNode<V>> {
         if body.header.subtype.r#type() != ObjectType::Omap &&
            body.header.subtype.r#type() != ObjectType::Fstree {
             return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree type"));
         }
-        // if !body.body.flags.contains(BtnFlags::FIXED_KV_SIZE) {
-        //     return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree flag combination"));
-        // }
-        //if !body.body.flags.contains(BtnFlags::LEAF) {
-        //    return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree node"));
-        //}
-        let info = info.unwrap();
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
         let mut cursor = Cursor::new(toc);
         let mut items = vec![];
-        //assert!(body.body.flags.contains(BtnFlags::LEAF));
         let mut records = vec![];
         let mut nrecords = vec![];
-        // let mut sizes = HashMap::<u64, u64>::new();
         for _ in 0..body.body.nkeys {
             let kvloc = if(body.body.flags.contains(BtnFlags::FIXED_KV_SIZE)) {
                 let kvoff = KVoff::import(&mut cursor)?;
@@ -913,14 +928,24 @@ impl<V> Btree<V> where
                 node: body, records: AnyRecords::NonLeaf(nrecords, PhantomData), _v: PhantomData
             }
         };
-        Ok(BtreeDecodedObject::BtreeRoot(node, info))
+        Ok(node)
+    }
+
+    fn load_btree_node<S: Read + Seek>(&self, apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeNode<V>> {
+        let body = match Self::load_btree_object(apfs, oid, r#type)? {
+            BtreeRawObject::BtreeNonRoot(body) => body,
+            _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Root node as a descendent in tree")); },
+        };
+        let node = Self::decode_btree_node(body, &self.info)?;
+        Ok(node)
     }
 
     pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<V>> {
-        let (root, info) = match Self::load_btree_node(apfs, oid, r#type)? {
-            BtreeDecodedObject::BtreeRoot(body, info) => (body, info),
-            _ => { unreachable!() },
+        let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
+            BtreeRawObject::BtreeRoot(body, info) => (body, info),
+            _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Non-root node at top of tree")); },
         };
+        let root = Self::decode_btree_node(body, &info)?;
         Ok(Btree { info, root, _v: PhantomData })
     }
 
