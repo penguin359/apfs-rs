@@ -1,6 +1,8 @@
 
 #[cfg(test)]
 mod test {
+    use crate::tests::test_dir;
+
     use super::*;
 
     use std::fs::File;
@@ -16,12 +18,6 @@ mod test {
         let mut cursor = Cursor::new(buffer);
         let checksum = cursor.read_u64::<LittleEndian>().unwrap();
         assert_eq!(fletcher64(&buffer[8..]), checksum);
-    }
-
-    fn test_dir() -> PathBuf {
-        let root = ::std::env::var_os("CARGO_MANIFEST_DIR").map(|x| PathBuf::from(x))
-            .unwrap_or_else(|| ::std::env::current_dir().unwrap());
-        root.join("testdata")
     }
 
     #[test]

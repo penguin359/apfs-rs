@@ -22,19 +22,23 @@ mod tests {
 
     #[test]
     fn test_open_image() {
-        let file_result = APFS::open(&test_dir().join("test-apfs.img"));
+        let file_result = APFS::open(test_dir().join("test-apfs.img"));
         assert!(file_result.is_ok());
     }
 
     #[test]
     fn test_open_nonexistent_image() {
-        let file_result = APFS::open(&test_dir().join("nonexistent.img"));
+        let file_result = APFS::open(test_dir().join("nonexistent.img"));
         assert!(file_result.is_err());
+    }
+
+    fn load_test_apfs_image() -> APFS<File> {
+        APFS::open(test_dir().join("test-apfs.img")).unwrap()
     }
 
     #[test]
     fn test_load_block0() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let mut apfs = load_test_apfs_image();
         let mut block_result = apfs.load_block(Paddr(0));
         assert!(block_result.is_ok());
         let block = block_result.unwrap();
@@ -50,7 +54,7 @@ mod tests {
     #[test]
     #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn test_load_block0_16k() {
-        let mut apfs = APFS::open(&test_dir().join("apfs-16k-cs.img")).unwrap();
+        let mut apfs = APFS::open(test_dir().join("apfs-16k-cs.img")).unwrap();
         let mut block_result = apfs.load_block(Paddr(0));
         assert!(block_result.is_ok());
         let block = block_result.unwrap();
@@ -65,14 +69,13 @@ mod tests {
 
     #[test]
     fn test_load_nonexistent_block() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let mut apfs = load_test_apfs_image();
         let block_result = apfs.load_block(Paddr(10000000));
         assert!(block_result.is_err());
     }
 
-    #[test]
-    fn test_load_block0_object() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+    pub fn load_test_apfs_superblock() -> (APFS<File>, NxSuperblockObject) {
+        let mut apfs = load_test_apfs_image();
         let object_result = apfs.load_object_addr(Paddr(0));
         assert!(object_result.is_ok());
         let object = object_result.unwrap();
@@ -80,6 +83,12 @@ mod tests {
             APFSObject::Superblock(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
+        (apfs, superblock)
+    }
+
+    #[test]
+    fn test_load_block0_object() {
+        let (_, superblock) = load_test_apfs_superblock();
         assert_eq!(superblock.body.block_size, 4096);
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
@@ -99,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_load_checkpoint_descriptors() {
-        let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+        let (mut apfs, superblock) = load_test_apfs_superblock();
         let object = apfs.load_object_addr(Paddr(0)).unwrap();
         let superblock = match object {
             APFSObject::Superblock(x) => x,

@@ -1,25 +1,8 @@
 use std::fs::File;
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapKey, OmapVal, OmapRecord, ApfsValue, AnyRecords, LeafRecord, NonLeafRecord, InoExtType, InodeXdata};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, LeafRecord, InoExtType, InodeXdata};
 
 use std::{env, collections::HashMap};
-
-fn scan_children(apfs: &mut APFS<File>, btree: &Btree<OmapVal>, children: Vec<NonLeafRecord<OmapKey>>) -> Vec<LeafRecord<OmapVal>> {
-    for child in children {
-        let node_result = btree.load_btree_node(apfs, child.value.oid, StorageType::Physical);
-        if node_result.is_err() {
-            println!("Error: {:?}", node_result.as_ref().err());
-        }
-        assert!(node_result.is_ok(), "Bad b-tree node load");
-        let node = node_result.unwrap();
-        println!("Volume Object Map B-Tree: {:#?}", node);
-        let _records: Vec<OmapRecord> = match node.records {
-            AnyRecords::Leaf(x) => x,
-            AnyRecords::NonLeaf(x, _) => scan_children(apfs, btree, x),
-        };
-    }
-    vec![]
-}
 
 fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records: AnyRecords<OmapVal>) {
     let records = match records {
@@ -55,11 +38,11 @@ fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records
     }
 }
 
-fn dump_apfs_records(btree: &Btree<ApfsValue>, apfs: &mut APFS<File>, records: AnyRecords<ApfsValue>) {
+fn dump_apfs_records(_btree: &Btree<ApfsValue>, apfs: &mut APFS<File>, records: AnyRecords<ApfsValue>) {
     let file_records: Vec<LeafRecord<ApfsValue>> = match records {
         AnyRecords::Leaf(x) => x,
         AnyRecords::NonLeaf(children, _) => {
-            for child in children {
+            for _child in children {
                 // Need to support virtual object lookup
                 //let node_result = btree.load_btree_node(apfs, child.value.oid, StorageType::Physical);
                 //if node_result.is_err() {

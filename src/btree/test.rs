@@ -119,7 +119,6 @@ mod omap_key {
     }
 
     #[test]
-    #[ignore]
     fn test_object_map_key_matching() {
         assert_eq!(KEY1.r#match(&KEY2), Ordering::Equal);
         assert_eq!(KEY1.r#match(&KEY_OID_LESS), Ordering::Greater);
@@ -135,7 +134,6 @@ mod omap_key {
 }
 
 #[test]
-// #[ignore = "test failing, developing smaller, more focused tests first"]
 fn test_volume_object_key_ordering() {
     let key1 = ApfsKey {
         key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
@@ -218,16 +216,11 @@ fn test_volume_object_key_ordering() {
     assert_eq!(key1.cmp(&key_object_id_greater_type_greater), Ordering::Less);
 }
 
-use crate::{tests::test_dir, JObjectIdAndType};
+use crate::{tests::{test_dir, load_test_apfs_superblock}, JObjectIdAndType};
 
 #[test]
 fn test_load_object_map() {
-    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-    let object = apfs.load_object_addr(Paddr(0)).unwrap();
-    let superblock = match object {
-        APFSObject::Superblock(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    let (mut apfs, superblock) = load_test_apfs_superblock();
     let object_result = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical);
     assert!(object_result.is_ok(), "Bad object map load");
     let object = object_result.unwrap();
@@ -246,12 +239,7 @@ fn test_load_object_map() {
 
 #[test]
 fn test_load_object_map_btree() {
-    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-    let object = apfs.load_object_addr(Paddr(0)).unwrap();
-    let superblock = match object {
-        APFSObject::Superblock(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    let (mut apfs, superblock) = load_test_apfs_superblock();
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,
@@ -274,7 +262,7 @@ fn test_load_object_map_btree() {
 
 #[test]
 fn test_load_object_map_btree_dummy() {
-    let mut source = File::open(&test_dir().join("btree.blob")).expect("Unable to load blob");
+    let mut source = File::open(test_dir().join("btree.blob")).expect("Unable to load blob");
     let mut apfs = APFS { source, block_size: 4096 };
     let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
     assert!(btree_result.is_ok(), "Bad b-tree load");
@@ -318,7 +306,7 @@ fn test_load_object_map_btree_dummy() {
 
 #[test]
 fn test_load_non_leaf_object_map_btree() {
-    let mut source = File::open(&test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
+    let mut source = File::open(test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
     let mut apfs = APFS { source, block_size: 4096 };
     let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
     assert!(btree_result.is_ok(), "Bad b-tree load");
@@ -341,11 +329,11 @@ fn test_load_non_leaf_object_map_btree() {
 
 #[test]
 fn test_load_non_root_object_map_btree() {
-    let mut source = File::open(&test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
+    let mut source = File::open(test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
     let mut apfs = APFS { source, block_size: 4096 };
     let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
     let btree = btree_result.unwrap();
-    let mut source = File::open(&test_dir().join("object-map-nonroot-nonleaf.blob")).expect("Unable to load blob");
+    let mut source = File::open(test_dir().join("object-map-nonroot-nonleaf.blob")).expect("Unable to load blob");
     let mut apfs = APFS { source, block_size: 4096 };
     let node_result = btree.load_btree_node(&mut apfs, Oid(0), StorageType::Physical);
     if node_result.is_err() {
@@ -371,12 +359,7 @@ fn test_load_non_root_object_map_btree() {
 
 #[test]
 fn test_load_volume_superblock() {
-    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-    let object = apfs.load_object_addr(Paddr(0)).unwrap();
-    let superblock = match object {
-        APFSObject::Superblock(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    let (mut apfs, superblock) = load_test_apfs_superblock();
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,
@@ -411,12 +394,7 @@ fn can_get_matching_record_from_leaf_node() {
     // BtreeNode {
     //     node: BtreeNodeObject { header: Ph, body: () }
     // }
-    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-    let object = apfs.load_object_addr(Paddr(0)).unwrap();
-    let superblock = match object {
-        APFSObject::Superblock(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    let (mut apfs, superblock) = load_test_apfs_superblock();
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,
@@ -444,12 +422,7 @@ fn can_get_matching_record_from_leaf_node() {
 
 #[test]
 fn no_record_returned_on_bad_match_from_leaf_node() {
-    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
-    let object = apfs.load_object_addr(Paddr(0)).unwrap();
-    let superblock = match object {
-        APFSObject::Superblock(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    let (mut apfs, superblock) = load_test_apfs_superblock();
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
         APFSObject::ObjectMap(x) => x,

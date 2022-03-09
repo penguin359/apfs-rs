@@ -6,12 +6,7 @@ use std::io::SeekFrom;
 use std::path::PathBuf;
 
 use crate::fletcher::fletcher64;
-
-fn test_dir() -> PathBuf {
-    let root = ::std::env::var_os("CARGO_MANIFEST_DIR").map(|x| PathBuf::from(x))
-        .unwrap_or_else(|| ::std::env::current_dir().unwrap());
-    root.join("testdata")
-}
+use crate::tests::test_dir;
 
 #[test]
 fn test_load_superblock() {
