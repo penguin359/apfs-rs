@@ -353,3 +353,61 @@ fn test_load_volume_superblock() {
     };
     assert_eq!(volume.body.volname[0..7], *b"MYAPFS\0");
 }
+
+#[test]
+fn can_get_matching_record_from_leaf_node() {
+    // BtreeNode {
+    //     node: BtreeNodeObject { header: Ph, body: () }
+    // }
+    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+    let object = apfs.load_object_addr(Paddr(0)).unwrap();
+    let superblock = match object {
+        APFSObject::Superblock(x) => x,
+        _ => { panic!("Wrong object type!"); },
+    };
+    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
+    let omap = match object {
+        APFSObject::ObjectMap(x) => x,
+        _ => { panic!("Wrong object type!"); },
+    };
+    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+    assert!(btree_result.is_ok(), "Bad b-tree load");
+    let btree = btree_result.unwrap();
+    let any_record = btree.root.get_record(OmapKey::new(1026, 4));
+    assert!(any_record.is_some());
+    let any_record = any_record.unwrap();
+    let record = match any_record {
+        // AnyRecord::NonLeaf(x, _) => x,
+        // _ => { panic!("Expected a non-leaf node"); },
+        AnyRecord::Leaf(x) => x,
+        _ => { panic!("Expected a leaf node"); },
+    };
+    assert_eq!(record.key.oid, Oid(1026));
+    assert_eq!(record.key.xid, Xid(4));
+    assert!(record.value.flags.is_empty());
+    assert_eq!(record.value.size, 4096);
+    assert_eq!(record.value.paddr, Paddr(102));
+}
+
+
+#[test]
+fn no_record_returned_on_bad_match_from_leaf_node() {
+    let mut apfs = APFS::open(&test_dir().join("test-apfs.img")).unwrap();
+    let object = apfs.load_object_addr(Paddr(0)).unwrap();
+    let superblock = match object {
+        APFSObject::Superblock(x) => x,
+        _ => { panic!("Wrong object type!"); },
+    };
+    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
+    let omap = match object {
+        APFSObject::ObjectMap(x) => x,
+        _ => { panic!("Wrong object type!"); },
+    };
+    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+    assert!(btree_result.is_ok(), "Bad b-tree load");
+    let btree = btree_result.unwrap();
+    let any_record = btree.root.get_record(OmapKey::new(500, 999));
+    assert!(any_record.is_none());
+    let any_record = btree.root.get_record(OmapKey::new(2012, 1));
+    assert!(any_record.is_none());
+}

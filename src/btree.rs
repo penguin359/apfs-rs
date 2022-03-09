@@ -462,6 +462,12 @@ mod test;
 // }
 
 #[derive(Debug)]
+pub enum AnyRecord<'a, V: LeafValue> {
+    Leaf(&'a LeafRecord<V>),
+    NonLeaf(&'a NonLeafRecord<V::Key>, PhantomData<V>),
+}
+
+#[derive(Debug)]
 pub enum AnyRecords<V: LeafValue> {
     Leaf(Vec<LeafRecord<V>>),
     NonLeaf(Vec<NonLeafRecord<V::Key>>, PhantomData<V>),
@@ -479,6 +485,17 @@ pub struct BtreeNode<V: LeafValue> {
     node: BtreeNodeObject,
     pub records: AnyRecords<V>,
     _v: PhantomData<V>,
+}
+
+impl BtreeNode<OmapVal> {
+    fn get_record<'a>(&'a self, key: <OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
+        Some(match self.records {
+            AnyRecords::Leaf(ref x) => {
+                return x.into_iter().filter(|y| y.key.oid == key.oid).nth(0).map(|y| AnyRecord::Leaf(y));
+            },
+            AnyRecords::NonLeaf(ref x, _) => AnyRecord::NonLeaf(x.get(0).unwrap(), PhantomData),
+        })
+    }
 }
 
 enum BtreeRawObject {

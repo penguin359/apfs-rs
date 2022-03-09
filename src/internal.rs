@@ -558,6 +558,13 @@ pub struct OmapKey {
 }
 
 impl OmapKey {
+    pub fn new (oid: u64, xid: u64) -> Self {
+        Self {
+            oid: Oid(oid),
+            xid: Xid(xid),
+        }
+    }
+
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             oid: Oid::import(source)?,
