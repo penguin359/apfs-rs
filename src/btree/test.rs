@@ -2,84 +2,136 @@ use std::fs::File;
 
 use super::*;
 
-#[test]
-fn test_object_map_key_ordering() {
-    let key1 = OmapKey {
-        oid: Oid(23),
-        xid: Xid(17),
-    };
-    let key2 = OmapKey {
-        oid: Oid(23),
-        xid: Xid(17),
-    };
-    let key_oid_less = OmapKey {
-        oid: Oid(21),
-        xid: Xid(17),
-    };
-    let key_oid_greater = OmapKey {
-        oid: Oid(25),
-        xid: Xid(17),
-    };
-    let key_xid_less = OmapKey {
-        oid: Oid(23),
-        xid: Xid(16),
-    };
-    let key_xid_greater = OmapKey {
-        oid: Oid(23),
-        xid: Xid(18),
-    };
-    let key_oid_less_xid_less = OmapKey {
-        oid: Oid(21),
-        xid: Xid(16),
-    };
-    let key_oid_greater_xid_less = OmapKey {
-        oid: Oid(25),
-        xid: Xid(16),
-    };
-    let key_oid_less_xid_greater = OmapKey {
-        oid: Oid(21),
-        xid: Xid(18),
-    };
-    let key_oid_greater_xid_greater = OmapKey {
-        oid: Oid(25),
-        xid: Xid(18),
-    };
-    assert_eq!(key1.cmp(&key2), Ordering::Equal);
-    assert_eq!(key1.cmp(&key_oid_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_oid_greater), Ordering::Less);
-    /* Matching keys have same Oid and and Xid less than or equal */
-    assert_eq!(key1.cmp(&key_xid_less), Ordering::Equal);
-    assert_eq!(key1.cmp(&key_xid_greater), Ordering::Less);
-    assert_eq!(key1.cmp(&key_oid_less_xid_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_oid_less_xid_greater), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_oid_greater_xid_less), Ordering::Less);
-    assert_eq!(key1.cmp(&key_oid_greater_xid_greater), Ordering::Less);
-}
+mod omap_key {
+    use super::*;
 
-#[test]
-fn test_object_map_key_equal() {
-    let key1 = OmapKey {
-        oid: Oid(23),
-        xid: Xid(17),
-    };
-    let key2 = OmapKey {
-        oid: Oid(23),
-        xid: Xid(17),
-    };
-    let key3 = OmapKey {
-        oid: Oid(21),
-        xid: Xid(17),
-    };
-    let key4 = OmapKey {
-        oid: Oid(23),
-        xid: Xid(18),
-    };
-    assert_eq!(key1, key2);
-    assert_ne!(key1, key3);
-    assert_ne!(key1, key4);
-    assert_ne!(key2, key3);
-    assert_ne!(key2, key4);
-    assert_ne!(key3, key4);
+        const KEY1: OmapKey = OmapKey {
+            oid: Oid(23),
+            xid: Xid(17),
+        };
+        const KEY2: OmapKey = OmapKey {
+            oid: Oid(23),
+            xid: Xid(17),
+        };
+        const KEY_OID_LESS: OmapKey = OmapKey {
+            oid: Oid(21),
+            xid: Xid(17),
+        };
+        const KEY_OID_GREATER: OmapKey = OmapKey {
+            oid: Oid(25),
+            xid: Xid(17),
+        };
+        const KEY_XID_LESS: OmapKey = OmapKey {
+            oid: Oid(23),
+            xid: Xid(16),
+        };
+        const KEY_XID_GREATER: OmapKey = OmapKey {
+            oid: Oid(23),
+            xid: Xid(18),
+        };
+        const KEY_OID_LESS_XID_LESS: OmapKey = OmapKey {
+            oid: Oid(21),
+            xid: Xid(16),
+        };
+        const KEY_OID_GREATER_XID_LESS: OmapKey = OmapKey {
+            oid: Oid(25),
+            xid: Xid(16),
+        };
+        const KEY_OID_LESS_XID_GREATER: OmapKey = OmapKey {
+            oid: Oid(21),
+            xid: Xid(18),
+        };
+        const KEY_OID_GREATER_XID_GREATER: OmapKey = OmapKey {
+            oid: Oid(25),
+            xid: Xid(18),
+        };
+
+        #[test]
+    fn test_object_map_key_ordering() {
+        assert_eq!(KEY1.cmp(&KEY2), Ordering::Equal);
+        assert_eq!(KEY1.cmp(&KEY_OID_LESS), Ordering::Greater);
+        assert_eq!(KEY1.cmp(&KEY_OID_GREATER), Ordering::Less);
+        assert_eq!(KEY1.cmp(&KEY_XID_LESS), Ordering::Greater);
+        assert_eq!(KEY1.cmp(&KEY_XID_GREATER), Ordering::Less);
+        assert_eq!(KEY1.cmp(&KEY_OID_LESS_XID_LESS), Ordering::Greater);
+        assert_eq!(KEY1.cmp(&KEY_OID_LESS_XID_GREATER), Ordering::Greater);
+        assert_eq!(KEY1.cmp(&KEY_OID_GREATER_XID_LESS), Ordering::Less);
+        assert_eq!(KEY1.cmp(&KEY_OID_GREATER_XID_GREATER), Ordering::Less);
+    }
+
+    #[test]
+    fn test_object_map_key_equal() {
+        assert_eq!(KEY1, KEY1);
+        assert_eq!(KEY1, KEY2);
+        assert_ne!(KEY1, KEY_OID_LESS);
+        assert_ne!(KEY1, KEY_OID_GREATER);
+        assert_ne!(KEY1, KEY_XID_LESS);
+        assert_ne!(KEY1, KEY_XID_GREATER);
+        assert_ne!(KEY1, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY1, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY1, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY1, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY2, KEY2);
+        assert_ne!(KEY2, KEY_OID_LESS);
+        assert_ne!(KEY2, KEY_OID_GREATER);
+        assert_ne!(KEY2, KEY_XID_LESS);
+        assert_ne!(KEY2, KEY_XID_GREATER);
+        assert_ne!(KEY2, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY2, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY2, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY2, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_LESS, KEY_OID_LESS);
+        assert_ne!(KEY_OID_LESS, KEY_OID_GREATER);
+        assert_ne!(KEY_OID_LESS, KEY_XID_LESS);
+        assert_ne!(KEY_OID_LESS, KEY_XID_GREATER);
+        assert_ne!(KEY_OID_LESS, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY_OID_LESS, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_OID_LESS, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_OID_LESS, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_GREATER, KEY_OID_GREATER);
+        assert_ne!(KEY_OID_GREATER, KEY_XID_LESS);
+        assert_ne!(KEY_OID_GREATER, KEY_XID_GREATER);
+        assert_ne!(KEY_OID_GREATER, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY_OID_GREATER, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_OID_GREATER, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_OID_GREATER, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_XID_LESS, KEY_XID_LESS);
+        assert_ne!(KEY_XID_LESS, KEY_XID_GREATER);
+        assert_ne!(KEY_XID_LESS, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY_XID_LESS, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_XID_LESS, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_XID_LESS, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_XID_GREATER, KEY_XID_GREATER);
+        assert_ne!(KEY_XID_GREATER, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY_XID_GREATER, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_XID_GREATER, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_XID_GREATER, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_LESS_XID_LESS, KEY_OID_LESS_XID_LESS);
+        assert_ne!(KEY_OID_LESS_XID_LESS, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_OID_LESS_XID_LESS, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_OID_LESS_XID_LESS, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_LESS_XID_GREATER, KEY_OID_LESS_XID_GREATER);
+        assert_ne!(KEY_OID_LESS_XID_GREATER, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_OID_LESS_XID_GREATER, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_GREATER_XID_LESS, KEY_OID_GREATER_XID_LESS);
+        assert_ne!(KEY_OID_GREATER_XID_LESS, KEY_OID_GREATER_XID_GREATER);
+        assert_eq!(KEY_OID_GREATER_XID_GREATER, KEY_OID_GREATER_XID_GREATER);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_object_map_key_matching() {
+        assert_eq!(KEY1.r#match(&KEY2), Ordering::Equal);
+        assert_eq!(KEY1.r#match(&KEY_OID_LESS), Ordering::Greater);
+        assert_eq!(KEY1.r#match(&KEY_OID_GREATER), Ordering::Less);
+        /* Matching keys have same Oid and and Xid less than or equal */
+        assert_eq!(KEY1.r#match(&KEY_XID_LESS), Ordering::Equal);
+        assert_eq!(KEY1.r#match(&KEY_XID_GREATER), Ordering::Less);
+        assert_eq!(KEY1.r#match(&KEY_OID_LESS_XID_LESS), Ordering::Greater);
+        assert_eq!(KEY1.r#match(&KEY_OID_LESS_XID_GREATER), Ordering::Greater);
+        assert_eq!(KEY1.r#match(&KEY_OID_GREATER_XID_LESS), Ordering::Less);
+        assert_eq!(KEY1.r#match(&KEY_OID_GREATER_XID_GREATER), Ordering::Less);
+    }
 }
 
 #[test]

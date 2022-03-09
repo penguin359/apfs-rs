@@ -36,16 +36,15 @@ pub trait LeafValue : Value {
     fn import(source: &mut dyn Read, key: &Self::Key) -> io::Result<Self>;
 }
 
-/* Object map keys match on the object ID equality and
-   a transaction ID that is less than or equal */
+trait Match {
+    fn r#match(&self, other: &Self) -> Ordering;
+}
+
 impl Ord for OmapKey {
     fn cmp(&self, other: &Self) -> Ordering {
         let order = self.oid.cmp(&other.oid);
         match order {
-            Ordering::Equal => match self.xid.cmp(&other.xid) {
-                Ordering::Less => Ordering::Less,
-                _ => Ordering::Equal,
-            },
+            Ordering::Equal => self.xid.cmp(&other.xid),
             _ => order,
         }
     }
@@ -69,6 +68,21 @@ impl Eq for OmapKey {
 impl Key for OmapKey {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self::import(source)?)
+    }
+}
+
+/* Object map keys match on the object ID equality and
+   a transaction ID that is less than or equal */
+impl Match for OmapKey {
+    fn r#match(&self, other: &Self) -> Ordering {
+        let order = self.oid.cmp(&other.oid);
+        match order {
+            Ordering::Equal => match self.xid.cmp(&other.xid) {
+                Ordering::Less => Ordering::Less,
+                _ => Ordering::Equal,
+            },
+            _ => order,
+        }
     }
 }
 
