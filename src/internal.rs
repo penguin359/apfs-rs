@@ -809,7 +809,7 @@ pub struct ApfsSuperblock {
 
     pub volname: [u8; APFS_VOLNAME_LEN],
     next_doc_id: u32,
-    
+
     role: VolumeRoles,
     reserved: u16,
 

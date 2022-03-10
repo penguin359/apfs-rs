@@ -216,10 +216,9 @@ fn test_volume_object_key_ordering() {
     assert_eq!(key1.cmp(&key_object_id_greater_type_greater), Ordering::Less);
 }
 
-use crate::{tests::{test_dir, load_test_apfs_superblock}, JObjectIdAndType};
+use crate::{tests::{test_dir, load_test_apfs_superblock}, JObjectIdAndType, ObjectMapObject, NxSuperblockObject};
 
-#[test]
-fn test_load_object_map() {
+fn load_test_apfs_object_map() -> (APFS<File>, NxSuperblockObject, ObjectMapObject) {
     let (mut apfs, superblock) = load_test_apfs_superblock();
     let object_result = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical);
     assert!(object_result.is_ok(), "Bad object map load");
@@ -228,26 +227,25 @@ fn test_load_object_map() {
         APFSObject::ObjectMap(x) => x,
         _ => { panic!("Wrong object type!"); },
     };
-    let btree_result = apfs.load_object_oid(omap.body.tree_oid, StorageType::Physical);
-    //assert!(btree_result.is_ok(), "Bad b-tree load");
+    (apfs, superblock, omap)
+}
+
+fn load_test_apfs_object_map_btree() -> (APFS<File>, NxSuperblockObject, ObjectMapObject, Btree<OmapVal>) {
+    let (mut apfs, superblock, omap) = load_test_apfs_object_map();
+    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
+    assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
-    let node = match btree {
-        APFSObject::Btree(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
+    (apfs, superblock, omap, btree)
+}
+
+#[test]
+fn test_load_object_map() {
+    let (mut apfs, _, omap) = load_test_apfs_object_map();
 }
 
 #[test]
 fn test_load_object_map_btree() {
-    let (mut apfs, superblock) = load_test_apfs_superblock();
-    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
-    let omap = match object {
-        APFSObject::ObjectMap(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
-    assert!(btree_result.is_ok(), "Bad b-tree load");
-    let btree = btree_result.unwrap();
+    let (_, _, _, btree) = load_test_apfs_object_map_btree();
     let records: Vec<OmapRecord> = match btree.root.records {
         AnyRecords::Leaf(x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
@@ -359,15 +357,7 @@ fn test_load_non_root_object_map_btree() {
 
 #[test]
 fn test_load_volume_superblock() {
-    let (mut apfs, superblock) = load_test_apfs_superblock();
-    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
-    let omap = match object {
-        APFSObject::ObjectMap(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
-    assert!(btree_result.is_ok(), "Bad b-tree load");
-    let btree = btree_result.unwrap();
+    let (mut apfs, superblock, _, btree) = load_test_apfs_object_map_btree();
     assert_ne!(superblock.body.fs_oid[0], Oid(0));
     let mut found = -1;
     let records: Vec<OmapRecord> = match btree.root.records {
@@ -391,18 +381,7 @@ fn test_load_volume_superblock() {
 
 #[test]
 fn can_get_matching_record_from_leaf_node() {
-    // BtreeNode {
-    //     node: BtreeNodeObject { header: Ph, body: () }
-    // }
-    let (mut apfs, superblock) = load_test_apfs_superblock();
-    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
-    let omap = match object {
-        APFSObject::ObjectMap(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
-    assert!(btree_result.is_ok(), "Bad b-tree load");
-    let btree = btree_result.unwrap();
+    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
     let any_record = btree.root.get_record(OmapKey::new(1026, 4));
     assert!(any_record.is_some());
     let any_record = any_record.unwrap();
@@ -422,15 +401,7 @@ fn can_get_matching_record_from_leaf_node() {
 
 #[test]
 fn no_record_returned_on_bad_match_from_leaf_node() {
-    let (mut apfs, superblock) = load_test_apfs_superblock();
-    let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
-    let omap = match object {
-        APFSObject::ObjectMap(x) => x,
-        _ => { panic!("Wrong object type!"); },
-    };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
-    assert!(btree_result.is_ok(), "Bad b-tree load");
-    let btree = btree_result.unwrap();
+    let (_, _, _, btree) = load_test_apfs_object_map_btree();
     let any_record = btree.root.get_record(OmapKey::new(500, 999));
     assert!(any_record.is_none());
     let any_record = btree.root.get_record(OmapKey::new(2012, 1));
