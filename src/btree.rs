@@ -505,7 +505,7 @@ impl BtreeNode<OmapVal> {
     fn get_record<'a>(&'a self, key: <OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
         Some(match self.records {
             AnyRecords::Leaf(ref x) => {
-                return x.into_iter().filter(|y| y.key.oid == key.oid).nth(0).map(|y| AnyRecord::Leaf(y));
+                return x.into_iter().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y));
             },
             AnyRecords::NonLeaf(ref x, _) => AnyRecord::NonLeaf(x.get(0).unwrap(), PhantomData),
         })
@@ -623,8 +623,16 @@ impl<V> Btree<V> where
         let root = Self::decode_btree_node(body, &info)?;
         Ok(Btree { info, root, _v: PhantomData })
     }
+}
 
-    pub fn get_record(&self, key: OmapKey) -> io::Result<OmapRecord> {
-        Err(io::Error::new(io::ErrorKind::Other, ""))
+impl Btree<OmapVal> {
+    pub fn get_record<'a>(&'a self, key: OmapKey) -> io::Result<Option<&'a OmapRecord>> {
+        Ok(self.root.get_record(key).map(|r| match r {
+            AnyRecord::Leaf(body) => body,
+            _ => {
+                unimplemented!("B+ Tree traversal incomplete");
+            }
+        }))
+        // Err(io::Error::new(io::ErrorKind::Other, ""))
     }
 }

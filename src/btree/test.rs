@@ -380,10 +380,10 @@ fn test_load_volume_superblock() {
 }
 
 #[test]
-fn can_get_matching_record_from_leaf_node() {
+fn can_get_exact_matching_record_from_leaf_node() {
     let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
     let any_record = btree.root.get_record(OmapKey::new(1026, 4));
-    assert!(any_record.is_some());
+    assert!(any_record.is_some(), "no matching record found");
     let any_record = any_record.unwrap();
     let record = match any_record {
         // AnyRecord::NonLeaf(x, _) => x,
@@ -398,12 +398,87 @@ fn can_get_matching_record_from_leaf_node() {
     assert_eq!(record.value.paddr, Paddr(102));
 }
 
-
 #[test]
-fn no_record_returned_on_bad_match_from_leaf_node() {
+fn no_record_returned_on_bad_exact_match_from_leaf_node() {
     let (_, _, _, btree) = load_test_apfs_object_map_btree();
     let any_record = btree.root.get_record(OmapKey::new(500, 999));
-    assert!(any_record.is_none());
+    assert!(any_record.is_none(), "matching record not expected");
     let any_record = btree.root.get_record(OmapKey::new(2012, 1));
-    assert!(any_record.is_none());
+    assert!(any_record.is_none(), "matching record not expected");
+}
+
+#[test]
+fn can_get_exact_matching_record_from_btree() {
+    let (_, _, _, btree) = load_test_apfs_object_map_btree();
+    let record = btree.get_record(OmapKey::new(1026, 4));
+    assert!(record.is_ok(), "error looking up record");
+    let record = record.unwrap();
+    assert!(record.is_some(), "no matching record found");
+    let record = record.unwrap();
+    assert_eq!(record.key.oid, Oid(1026));
+    assert_eq!(record.key.xid, Xid(4));
+    assert!(record.value.flags.is_empty());
+    assert_eq!(record.value.size, 4096);
+    assert_eq!(record.value.paddr, Paddr(102));
+}
+
+#[test]
+fn no_record_returned_on_bad_exact_match_from_btree() {
+    let (_, _, _, btree) = load_test_apfs_object_map_btree();
+    let record = btree.get_record(OmapKey::new(500, 999));
+    assert!(record.is_ok(), "error looking up non-existant record");
+    let record = record.unwrap();
+    assert!(record.is_none(), "matching record not expected");
+    let record = btree.get_record(OmapKey::new(2012, 1));
+    assert!(record.is_ok(), "error looking up non-existant record");
+    let record = record.unwrap();
+    assert!(record.is_none(), "matching record not expected");
+}
+
+#[test]
+fn can_get_inexact_matching_record_from_leaf_node() {
+    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
+    let any_record = btree.root.get_record(OmapKey::new(1026, 100));
+    assert!(any_record.is_some(), "no matching record found");
+    let any_record = any_record.unwrap();
+    let record = match any_record {
+        AnyRecord::Leaf(x) => x,
+        _ => { panic!("Expected a leaf node"); },
+    };
+    assert_eq!(record.key.oid, Oid(1026));
+    assert_eq!(record.key.xid, Xid(4));
+    assert!(record.value.flags.is_empty());
+    assert_eq!(record.value.size, 4096);
+    assert_eq!(record.value.paddr, Paddr(102));
+}
+
+#[test]
+fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
+    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
+    let any_record = btree.root.get_record(OmapKey::new(1026, 1));
+    assert!(any_record.is_none(), "matching record not expected");
+}
+
+#[test]
+fn can_get_inexact_matching_record_from_btree() {
+    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
+    let record = btree.get_record(OmapKey::new(1026, 100));
+    assert!(record.is_ok(), "error looking up non-existant record");
+    let record = record.unwrap();
+    assert!(record.is_some(), "no matching record found");
+    let record = record.unwrap();
+    assert_eq!(record.key.oid, Oid(1026));
+    assert_eq!(record.key.xid, Xid(4));
+    assert!(record.value.flags.is_empty());
+    assert_eq!(record.value.size, 4096);
+    assert_eq!(record.value.paddr, Paddr(102));
+}
+
+#[test]
+fn no_record_returned_on_bad_inexact_match_from_btree() {
+    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
+    let record = btree.get_record(OmapKey::new(1026, 1));
+    assert!(record.is_ok(), "error looking up non-existant record");
+    let record = record.unwrap();
+    assert!(record.is_none(), "matching record not expected");
 }
