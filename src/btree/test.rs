@@ -133,93 +133,97 @@ mod omap_key {
     }
 }
 
-#[test]
-fn test_volume_object_key_ordering() {
-    let key1 = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
-        subkey: ApfsSubKey::Name("middle".to_string()),
-    };
-    let key2 = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
-        subkey: ApfsSubKey::Name("middle".to_string()),
-    };
-    let key_object_id_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 300), },
-        subkey: ApfsSubKey::Name("middle".to_string()),
-    };
-    let key_object_id_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 650), },
-        subkey: ApfsSubKey::Name("middle".to_string()),
-    };
-    let key_object_type_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 500), },
-        subkey: ApfsSubKey::None,
-    };
-    let key_object_type_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 500), },
-        subkey: ApfsSubKey::None,
-    };
-    let key_name_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
-        subkey: ApfsSubKey::Name("alpha".to_string()),
-    };
-    let key_name_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
-        subkey: ApfsSubKey::Name("zulu".to_string()),
-    };
-    let key_object_id_less_name_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
-        subkey: ApfsSubKey::Name("alpha".to_string()),
-    };
-    let key_object_id_greater_name_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
-        subkey: ApfsSubKey::Name("alpha".to_string()),
-    };
-    let key_object_id_less_name_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
-        subkey: ApfsSubKey::Name("zulu".to_string()),
-    };
-    let key_object_id_greater_name_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
-        subkey: ApfsSubKey::Name("zulu".to_string()),
-    };
-    let key_object_id_less_type_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 271), },
-        subkey: ApfsSubKey::None,
-    };
-    let key_object_id_greater_type_less = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 749), },
-        subkey: ApfsSubKey::None,
-    };
-    let key_object_id_less_type_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 271), },
-        subkey: ApfsSubKey::None,
-    };
-    let key_object_id_greater_type_greater = ApfsKey {
-        key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 749), },
-        subkey: ApfsSubKey::None,
-    };
-    assert_eq!(key1.cmp(&key2), Ordering::Equal);
-    assert_eq!(key1.cmp(&key_object_id_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_id_greater), Ordering::Less);
-    assert_eq!(key1.cmp(&key_object_type_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_type_greater), Ordering::Less);
-    assert_eq!(key1.cmp(&key_name_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_name_greater), Ordering::Less);
-    assert_eq!(key1.cmp(&key_object_id_less_name_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_id_less_name_greater), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_id_greater_name_less), Ordering::Less);
-    assert_eq!(key1.cmp(&key_object_id_greater_name_greater), Ordering::Less);
-    assert_eq!(key1.cmp(&key_object_id_less_type_less), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_id_less_type_greater), Ordering::Greater);
-    assert_eq!(key1.cmp(&key_object_id_greater_type_less), Ordering::Less);
-    assert_eq!(key1.cmp(&key_object_id_greater_type_greater), Ordering::Less);
+mod apfs_key {
+    use super::*;
+
+    #[test]
+    fn test_volume_object_key_ordering() {
+        let key1 = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key2 = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_id_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 300), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_id_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 650), },
+            subkey: ApfsSubKey::Name("middle".to_string()),
+        };
+        let key_object_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 500), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 500), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 500), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_less_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_object_id_greater_name_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
+            subkey: ApfsSubKey::Name("alpha".to_string()),
+        };
+        let key_object_id_less_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 271), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_greater_name_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::DirRec, 749), },
+            subkey: ApfsSubKey::Name("zulu".to_string()),
+        };
+        let key_object_id_less_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 271), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_greater_type_less = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::Inode, 749), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_less_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 271), },
+            subkey: ApfsSubKey::None,
+        };
+        let key_object_id_greater_type_greater = ApfsKey {
+            key: JKey { obj_id_and_type: JObjectIdAndType::new_by_field(JObjTypes::SiblingMap, 749), },
+            subkey: ApfsSubKey::None,
+        };
+        assert_eq!(key1.cmp(&key2), Ordering::Equal);
+        assert_eq!(key1.cmp(&key_object_id_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_type_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_type_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_name_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_name_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_less_name_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_less_name_greater), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater_name_less), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_greater_name_greater), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_less_type_less), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_less_type_greater), Ordering::Greater);
+        assert_eq!(key1.cmp(&key_object_id_greater_type_less), Ordering::Less);
+        assert_eq!(key1.cmp(&key_object_id_greater_type_greater), Ordering::Less);
+    }
 }
 
-use crate::{tests::{test_dir, load_test_apfs_superblock}, JObjectIdAndType, ObjectMapObject, NxSuperblockObject};
+use crate::{tests::{test_dir, load_test_apfs_superblock, TEST_APFS_FILE, TEST_16KB_APFS_FILE}, JObjectIdAndType, ObjectMapObject, NxSuperblockObject};
 
-fn load_test_apfs_object_map() -> (APFS<File>, NxSuperblockObject, ObjectMapObject) {
-    let (mut apfs, superblock) = load_test_apfs_superblock();
+fn load_test_apfs_object_map(file: &str) -> (APFS<File>, NxSuperblockObject, ObjectMapObject) {
+    let (mut apfs, superblock) = load_test_apfs_superblock(file);
     let object_result = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical);
     assert!(object_result.is_ok(), "Bad object map load");
     let object = object_result.unwrap();
@@ -230,8 +234,8 @@ fn load_test_apfs_object_map() -> (APFS<File>, NxSuperblockObject, ObjectMapObje
     (apfs, superblock, omap)
 }
 
-fn load_test_apfs_object_map_btree() -> (APFS<File>, NxSuperblockObject, ObjectMapObject, Btree<OmapVal>) {
-    let (mut apfs, superblock, omap) = load_test_apfs_object_map();
+fn load_test_apfs_object_map_btree(file: &str) -> (APFS<File>, NxSuperblockObject, ObjectMapObject, Btree<OmapVal>) {
+    let (mut apfs, superblock, omap) = load_test_apfs_object_map(file);
     let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, omap.body.tree_oid, StorageType::Physical);
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
@@ -240,12 +244,12 @@ fn load_test_apfs_object_map_btree() -> (APFS<File>, NxSuperblockObject, ObjectM
 
 #[test]
 fn test_load_object_map() {
-    let (mut apfs, _, omap) = load_test_apfs_object_map();
+    let (mut apfs, _, omap) = load_test_apfs_object_map(TEST_APFS_FILE);
 }
 
 #[test]
 fn test_load_object_map_btree() {
-    let (_, _, _, btree) = load_test_apfs_object_map_btree();
+    let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
     let records: Vec<OmapRecord> = match btree.root.records {
         AnyRecords::Leaf(x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
@@ -357,7 +361,7 @@ fn test_load_non_root_object_map_btree() {
 
 #[test]
 fn test_load_volume_superblock() {
-    let (mut apfs, superblock, _, btree) = load_test_apfs_object_map_btree();
+    let (mut apfs, superblock, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
     assert_ne!(superblock.body.fs_oid[0], Oid(0));
     let mut found = -1;
     let records: Vec<OmapRecord> = match btree.root.records {
@@ -379,10 +383,8 @@ fn test_load_volume_superblock() {
     assert_eq!(volume.body.volname[0..7], *b"MYAPFS\0");
 }
 
-#[test]
-fn can_get_exact_matching_record_from_leaf_node() {
-    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
-    let any_record = btree.root.get_record(OmapKey::new(1026, 4));
+fn check_omap_leaf_record_lookup(btree: &Btree<OmapVal>, key_oid: u64, key_xid: u64, oid: Oid, xid: Xid, size: u32, paddr: Paddr) {
+    let any_record = btree.root.get_record(OmapKey::new(key_oid, key_xid));
     assert!(any_record.is_some(), "no matching record found");
     let any_record = any_record.unwrap();
     let record = match any_record {
@@ -391,94 +393,145 @@ fn can_get_exact_matching_record_from_leaf_node() {
         AnyRecord::Leaf(x) => x,
         _ => { panic!("Expected a leaf node"); },
     };
-    assert_eq!(record.key.oid, Oid(1026));
-    assert_eq!(record.key.xid, Xid(4));
+    assert_eq!(record.key.oid, oid);
+    assert_eq!(record.key.xid, xid);
     assert!(record.value.flags.is_empty());
-    assert_eq!(record.value.size, 4096);
-    assert_eq!(record.value.paddr, Paddr(102));
+    assert_eq!(record.value.size, size);
+    assert_eq!(record.value.paddr, paddr);
 }
 
-#[test]
-fn no_record_returned_on_bad_exact_match_from_leaf_node() {
-    let (_, _, _, btree) = load_test_apfs_object_map_btree();
-    let any_record = btree.root.get_record(OmapKey::new(500, 999));
-    assert!(any_record.is_none(), "matching record not expected");
-    let any_record = btree.root.get_record(OmapKey::new(2012, 1));
+fn check_omap_leaf_record_lookup_missing(btree: &Btree<OmapVal>, key_oid: u64, key_xid: u64) {
+    let any_record = btree.root.get_record(OmapKey::new(key_oid, key_xid));
     assert!(any_record.is_none(), "matching record not expected");
 }
 
-#[test]
-fn can_get_exact_matching_record_from_btree() {
-    let (_, _, _, btree) = load_test_apfs_object_map_btree();
-    let record = btree.get_record(OmapKey::new(1026, 4));
-    assert!(record.is_ok(), "error looking up record");
-    let record = record.unwrap();
-    assert!(record.is_some(), "no matching record found");
-    let record = record.unwrap();
-    assert_eq!(record.key.oid, Oid(1026));
-    assert_eq!(record.key.xid, Xid(4));
-    assert!(record.value.flags.is_empty());
-    assert_eq!(record.value.size, 4096);
-    assert_eq!(record.value.paddr, Paddr(102));
+mod block_4k {
+    use super::*;
+
+    #[test]
+    fn can_get_exact_matching_record_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        check_omap_leaf_record_lookup(&btree, 1026, 4, Oid(1026), Xid(4), 4096, Paddr(102));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_exact_match_from_leaf_node() {
+        let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        check_omap_leaf_record_lookup_missing(&btree, 500, 999);
+        check_omap_leaf_record_lookup_missing(&btree, 2012, 1);
+    }
+
+    #[test]
+    fn can_get_inexact_matching_record_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        check_omap_leaf_record_lookup(&btree, 1026, 100, Oid(1026), Xid(4), 4096, Paddr(102))
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        let any_record = btree.root.get_record(OmapKey::new(1026, 1));
+        assert!(any_record.is_none(), "matching record not expected");
+        check_omap_leaf_record_lookup_missing(&btree, 1026, 1);
+    }
+
+    #[test]
+    fn can_get_exact_matching_record_from_btree() {
+        let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        let record = btree.get_record(OmapKey::new(1026, 4));
+        assert!(record.is_ok(), "error looking up record");
+        let record = record.unwrap();
+        assert!(record.is_some(), "no matching record found");
+        let record = record.unwrap();
+        assert_eq!(record.key.oid, Oid(1026));
+        assert_eq!(record.key.xid, Xid(4));
+        assert!(record.value.flags.is_empty());
+        assert_eq!(record.value.size, 4096);
+        assert_eq!(record.value.paddr, Paddr(102));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_exact_match_from_btree() {
+        let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        let record = btree.get_record(OmapKey::new(500, 999));
+        assert!(record.is_ok(), "error looking up non-existant record");
+        let record = record.unwrap();
+        assert!(record.is_none(), "matching record not expected");
+        let record = btree.get_record(OmapKey::new(2012, 1));
+        assert!(record.is_ok(), "error looking up non-existant record");
+        let record = record.unwrap();
+        assert!(record.is_none(), "matching record not expected");
+    }
+
+    #[test]
+    fn can_get_inexact_matching_record_from_btree() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        let record = btree.get_record(OmapKey::new(1026, 100));
+        assert!(record.is_ok(), "error looking up non-existant record");
+        let record = record.unwrap();
+        assert!(record.is_some(), "no matching record found");
+        let record = record.unwrap();
+        assert_eq!(record.key.oid, Oid(1026));
+        assert_eq!(record.key.xid, Xid(4));
+        assert!(record.value.flags.is_empty());
+        assert_eq!(record.value.size, 4096);
+        assert_eq!(record.value.paddr, Paddr(102));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_inexact_match_from_btree() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
+        let record = btree.get_record(OmapKey::new(1026, 1));
+        assert!(record.is_ok(), "error looking up non-existant record");
+        let record = record.unwrap();
+        assert!(record.is_none(), "matching record not expected");
+    }
 }
 
-#[test]
-fn no_record_returned_on_bad_exact_match_from_btree() {
-    let (_, _, _, btree) = load_test_apfs_object_map_btree();
-    let record = btree.get_record(OmapKey::new(500, 999));
-    assert!(record.is_ok(), "error looking up non-existant record");
-    let record = record.unwrap();
-    assert!(record.is_none(), "matching record not expected");
-    let record = btree.get_record(OmapKey::new(2012, 1));
-    assert!(record.is_ok(), "error looking up non-existant record");
-    let record = record.unwrap();
-    assert!(record.is_none(), "matching record not expected");
-}
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
+mod block_16k {
+    use super::*;
 
-#[test]
-fn can_get_inexact_matching_record_from_leaf_node() {
-    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
-    let any_record = btree.root.get_record(OmapKey::new(1026, 100));
-    assert!(any_record.is_some(), "no matching record found");
-    let any_record = any_record.unwrap();
-    let record = match any_record {
-        AnyRecord::Leaf(x) => x,
-        _ => { panic!("Expected a leaf node"); },
-    };
-    assert_eq!(record.key.oid, Oid(1026));
-    assert_eq!(record.key.xid, Xid(4));
-    assert!(record.value.flags.is_empty());
-    assert_eq!(record.value.size, 4096);
-    assert_eq!(record.value.paddr, Paddr(102));
-}
+    #[test]
+    fn can_get_exact_matching_record_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
+        check_omap_leaf_record_lookup(&btree, 1026, 2, Oid(1026), Xid(2), 16384, Paddr(978));
+        check_omap_leaf_record_lookup(&btree, 1030, 3, Oid(1030), Xid(3), 16384, Paddr(986));
+        check_omap_leaf_record_lookup(&btree, 1032, 4, Oid(1032), Xid(4), 16384, Paddr(998));
+    }
 
-#[test]
-fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
-    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
-    let any_record = btree.root.get_record(OmapKey::new(1026, 1));
-    assert!(any_record.is_none(), "matching record not expected");
-}
+    #[test]
+    fn no_record_returned_on_bad_exact_match_from_leaf_node() {
+        let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
+        check_omap_leaf_record_lookup_missing(&btree, 1025, 2);
+        check_omap_leaf_record_lookup_missing(&btree, 1027, 2);
+        check_omap_leaf_record_lookup_missing(&btree, 1029, 3);
+        check_omap_leaf_record_lookup_missing(&btree, 1031, 3);
+        check_omap_leaf_record_lookup_missing(&btree, 1031, 4);
+        check_omap_leaf_record_lookup_missing(&btree, 1033, 4);
+    }
 
-#[test]
-fn can_get_inexact_matching_record_from_btree() {
-    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
-    let record = btree.get_record(OmapKey::new(1026, 100));
-    assert!(record.is_ok(), "error looking up non-existant record");
-    let record = record.unwrap();
-    assert!(record.is_some(), "no matching record found");
-    let record = record.unwrap();
-    assert_eq!(record.key.oid, Oid(1026));
-    assert_eq!(record.key.xid, Xid(4));
-    assert!(record.value.flags.is_empty());
-    assert_eq!(record.value.size, 4096);
-    assert_eq!(record.value.paddr, Paddr(102));
-}
+    #[test]
+    fn can_get_inexact_matching_record_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
+        check_omap_leaf_record_lookup(&btree, 1026, 3, Oid(1026), Xid(2), 16384, Paddr(978));
+        check_omap_leaf_record_lookup(&btree, 1026, 4, Oid(1026), Xid(2), 16384, Paddr(978));
+        check_omap_leaf_record_lookup(&btree, 1030, 4, Oid(1030), Xid(3), 16384, Paddr(986));
+        check_omap_leaf_record_lookup(&btree, 1030, 9, Oid(1030), Xid(3), 16384, Paddr(986));
+        check_omap_leaf_record_lookup(&btree, 1032, 5, Oid(1032), Xid(4), 16384, Paddr(998));
+        check_omap_leaf_record_lookup(&btree, 1032, 30, Oid(1032), Xid(4), 16384, Paddr(998));
+    }
 
-#[test]
-fn no_record_returned_on_bad_inexact_match_from_btree() {
-    let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree();
-    let record = btree.get_record(OmapKey::new(1026, 1));
-    assert!(record.is_ok(), "error looking up non-existant record");
-    let record = record.unwrap();
-    assert!(record.is_none(), "matching record not expected");
+    #[test]
+    fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
+        let (mut apfs, superblock, omap, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
+        let any_record = btree.root.get_record(OmapKey::new(1026, 1));
+        assert!(any_record.is_none(), "matching record not expected");
+        check_omap_leaf_record_lookup_missing(&btree, 1026, 0);
+        check_omap_leaf_record_lookup_missing(&btree, 1026, 1);
+        check_omap_leaf_record_lookup_missing(&btree, 1030, 1);
+        check_omap_leaf_record_lookup_missing(&btree, 1030, 2);
+        check_omap_leaf_record_lookup_missing(&btree, 1032, 2);
+        check_omap_leaf_record_lookup_missing(&btree, 1032, 3);
+    }
 }

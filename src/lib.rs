@@ -32,13 +32,16 @@ mod tests {
         assert!(file_result.is_err());
     }
 
-    fn load_test_apfs_image() -> APFS<File> {
-        APFS::open(test_dir().join("test-apfs.img")).unwrap()
+    pub const TEST_APFS_FILE : &str = "test-apfs.img";
+    pub const TEST_16KB_APFS_FILE : &str = "apfs-16k-cs.img";
+
+    fn load_test_apfs_image(file: &str) -> APFS<File> {
+        APFS::open(test_dir().join(file)).unwrap()
     }
 
     #[test]
     fn test_load_block0() {
-        let mut apfs = load_test_apfs_image();
+        let mut apfs = load_test_apfs_image(TEST_APFS_FILE);
         let mut block_result = apfs.load_block(Paddr(0));
         assert!(block_result.is_ok());
         let block = block_result.unwrap();
@@ -54,7 +57,7 @@ mod tests {
     #[test]
     #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn test_load_block0_16k() {
-        let mut apfs = APFS::open(test_dir().join("apfs-16k-cs.img")).unwrap();
+        let mut apfs = load_test_apfs_image(TEST_16KB_APFS_FILE);
         let mut block_result = apfs.load_block(Paddr(0));
         assert!(block_result.is_ok());
         let block = block_result.unwrap();
@@ -69,13 +72,13 @@ mod tests {
 
     #[test]
     fn test_load_nonexistent_block() {
-        let mut apfs = load_test_apfs_image();
+        let mut apfs = load_test_apfs_image(TEST_APFS_FILE);
         let block_result = apfs.load_block(Paddr(10000000));
         assert!(block_result.is_err());
     }
 
-    pub fn load_test_apfs_superblock() -> (APFS<File>, NxSuperblockObject) {
-        let mut apfs = load_test_apfs_image();
+    pub fn load_test_apfs_superblock(file: &str) -> (APFS<File>, NxSuperblockObject) {
+        let mut apfs = load_test_apfs_image(file);
         let object_result = apfs.load_object_addr(Paddr(0));
         assert!(object_result.is_ok());
         let object = object_result.unwrap();
@@ -88,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_load_block0_object() {
-        let (_, superblock) = load_test_apfs_superblock();
+        let (_, superblock) = load_test_apfs_superblock(TEST_APFS_FILE);
         assert_eq!(superblock.body.block_size, 4096);
         //let mut cursor = Cursor::new(&block[..]);
         //let header = ObjPhys::import(&mut cursor).unwrap();
@@ -108,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_load_checkpoint_descriptors() {
-        let (mut apfs, superblock) = load_test_apfs_superblock();
+        let (mut apfs, superblock) = load_test_apfs_superblock(TEST_APFS_FILE);
         let object = apfs.load_object_addr(Paddr(0)).unwrap();
         let superblock = match object {
             APFSObject::Superblock(x) => x,
