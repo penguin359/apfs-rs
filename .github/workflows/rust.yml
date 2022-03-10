@@ -24,3 +24,9 @@ jobs:
       run: cargo test --verbose
     - name: Run demo
       run: cargo run --verbose testdata/test-apfs.img
+    - name: Extract 16kb block disk image
+      run: "cat testdata/apfs-16k-cs.img.gz | gunzip | dd of=testdata/apfs-16k-cs.img2 conv=sparse"
+    - name: Run expensive tests
+      run: cargo test --verbose --all-features
+    - name: Run 16kb block demo
+      run: cargo run --verbose testdata/apfs-16k-cs.img
