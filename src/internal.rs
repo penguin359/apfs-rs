@@ -71,8 +71,8 @@ const MAX_CKSUM_SIZE: usize = 8;
 #[derive(Debug)]
 pub struct ObjPhys {
     pub cksum: u64,
-    oid: Oid,
-    xid: Xid,
+    pub oid: Oid,
+    pub xid: Xid,
     pub r#type: ObjectTypeAndFlags,
     pub subtype: ObjectTypeAndFlags,
 }

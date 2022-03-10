@@ -220,7 +220,7 @@ mod apfs_key {
     }
 }
 
-use crate::{tests::{test_dir, load_test_apfs_superblock, TEST_APFS_FILE, TEST_16KB_APFS_FILE}, JObjectIdAndType, ObjectMapObject, NxSuperblockObject};
+use crate::{tests::{test_dir, load_test_apfs_superblock, TEST_APFS_FILE, TEST_16KB_APFS_FILE}, JObjectIdAndType, ObjectMapObject, NxSuperblockObject, BtreeInfoFixed, BtFlags, ObjPhys, ObjectTypeAndFlags, ObjTypeFlags};
 
 fn load_test_apfs_object_map(file: &str) -> (APFS<File>, NxSuperblockObject, ObjectMapObject) {
     let (mut apfs, superblock) = load_test_apfs_superblock(file);
@@ -533,5 +533,108 @@ mod block_16k {
         check_omap_leaf_record_lookup_missing(&btree, 1030, 2);
         check_omap_leaf_record_lookup_missing(&btree, 1032, 2);
         check_omap_leaf_record_lookup_missing(&btree, 1032, 3);
+    }
+}
+
+mod dummy_node {
+    use super::*;
+
+    fn create_dummy_single_node() -> Btree<OmapVal> {
+        Btree {
+            root: BtreeNode {
+                node: BtreeNodeObject {
+                    header: ObjPhys {
+                        cksum: 0,
+                        oid: Oid(0),
+                        xid: Xid(0),
+                        r#type: ObjectTypeAndFlags::new_by_field(ObjectType::Btree, StorageType::Physical, ObjTypeFlags::empty()),
+                        subtype: ObjectTypeAndFlags::new_by_field(ObjectType::Omap, StorageType::Virtual, ObjTypeFlags::empty()),
+                    },
+                    body: BtreeNodePhys {
+                        flags: BtnFlags::ROOT | BtnFlags::LEAF | BtnFlags::FIXED_KV_SIZE,
+                        level: 0,
+                        nkeys: 8,
+                        table_space: Nloc {
+                            off: 0,
+                            len: 0,
+                        },
+                        free_space: Nloc {
+                            off: 0,
+                            len: 0,
+                        },
+                        key_free_list: Nloc {
+                            off: 0,
+                            len: 0,
+                        },
+                        val_free_list: Nloc {
+                            off: 0,
+                            len: 0,
+                        },
+                        data: vec![],
+                    },
+                },
+                records: AnyRecords::Leaf(vec![
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(110), xid: Xid(1000) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(30), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(120), xid: Xid(100) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(50), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(120), xid: Xid(200) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(40), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(120), xid: Xid(300) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(60), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(130), xid: Xid(50) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(100), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(130), xid: Xid(51) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(101), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(131), xid: Xid(10) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(90), },
+                    },
+                    LeafRecord {
+                        key: OmapKey { oid: Oid(135), xid: Xid(50) },
+                        value: OmapVal { flags: OvFlags::empty(), size: 4096, paddr: Paddr(95), },
+                    },
+                ]),
+                _v: PhantomData,
+            },
+            info: BtreeInfo {
+                fixed: BtreeInfoFixed {
+                    flags: BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL,
+                    node_size: 4096,
+                    key_size: 16,
+                    val_size: 16,
+                },
+                longest_key: 16,
+                longest_val: 16,
+                key_count: 8,
+                node_count: 1,
+            },
+            _v: PhantomData,
+        }
+    }
+
+    #[test]
+    fn can_get_exact_matching_record_from_leaf_node() {
+        let btree = create_dummy_single_node();
+        check_omap_leaf_record_lookup(&btree, 110, 1000, Oid(110), Xid(1000), 4096, Paddr(30));
+        check_omap_leaf_record_lookup(&btree, 120, 100, Oid(120), Xid(100), 4096, Paddr(50));
+        check_omap_leaf_record_lookup(&btree, 120, 200, Oid(120), Xid(200), 4096, Paddr(40));
+        check_omap_leaf_record_lookup(&btree, 120, 300, Oid(120), Xid(300), 4096, Paddr(60));
+        check_omap_leaf_record_lookup(&btree, 130, 50, Oid(130), Xid(50), 4096, Paddr(100));
+        check_omap_leaf_record_lookup(&btree, 130, 51, Oid(130), Xid(51), 4096, Paddr(101));
+        check_omap_leaf_record_lookup(&btree, 131, 10, Oid(131), Xid(10), 4096, Paddr(90));
+        check_omap_leaf_record_lookup(&btree, 135, 50, Oid(135), Xid(50), 4096, Paddr(95));
     }
 }

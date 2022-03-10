@@ -505,7 +505,7 @@ impl BtreeNode<OmapVal> {
     fn get_record<'a>(&'a self, key: <OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
         Some(match self.records {
             AnyRecords::Leaf(ref x) => {
-                return x.into_iter().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y));
+                return x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y));
             },
             AnyRecords::NonLeaf(ref x, _) => AnyRecord::NonLeaf(x.get(0).unwrap(), PhantomData),
         })
