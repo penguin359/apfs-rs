@@ -306,57 +306,97 @@ fn test_load_object_map_btree_dummy() {
     assert_eq!(records[5].value.paddr, Paddr(0x600),     "value 5 paddr");
 }
 
-#[test]
-fn test_load_non_leaf_object_map_btree() {
-    let mut source = File::open(test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
-    let mut apfs = APFS { source, block_size: 4096 };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
-    assert!(btree_result.is_ok(), "Bad b-tree load");
-    let btree = btree_result.unwrap();
-    let records = match btree.root.records {
-        AnyRecords::NonLeaf(x, _) => x,
-        _ => { panic!("Wrong b-tree record type!"); },
-    };
-    assert_eq!(records.len(), 85);
-    assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
-    assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
-    assert_eq!(records[0].value.oid, Oid(0x107ab1), "value oid");
-    assert_eq!(records[1].key.oid, Oid(0x2eda), "key oid");
-    assert_eq!(records[1].key.xid, Xid(0x6), "key xid");
-    assert_eq!(records[1].value.oid, Oid(0x148050), "value oid");
-    assert_eq!(records[2].key.oid, Oid(0x5807), "key oid");
-    assert_eq!(records[2].key.xid, Xid(0x8de0ea), "key xid");
-    assert_eq!(records[2].value.oid, Oid(0x1447ea), "value oid");
-}
+mod object_map {
+    use super::*;
 
-#[test]
-fn test_load_non_root_object_map_btree() {
-    let mut source = File::open(test_dir().join("object-map-root-nonleaf.blob")).expect("Unable to load blob");
-    let mut apfs = APFS { source, block_size: 4096 };
-    let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
-    let btree = btree_result.unwrap();
-    let mut source = File::open(test_dir().join("object-map-nonroot-nonleaf.blob")).expect("Unable to load blob");
-    let mut apfs = APFS { source, block_size: 4096 };
-    let node_result = btree.load_btree_node(&mut apfs, Oid(0), StorageType::Physical);
-    if node_result.is_err() {
-        println!("Error: {:?}", node_result.as_ref().err());
+    const OBJECT_MAP_ROOT_FILE: &str = "object-map-root-nonleaf.blob";
+    const OBJECT_MAP_NONLEAF_FILE: &str = "object-map-nonroot-nonleaf.blob";
+    const OBJECT_MAP_LEAF_FILE: &str = "object-map-nonroot-leaf.blob";
+
+    fn load_root_object_map() -> Btree<OmapVal> {
+        let mut source = File::open(test_dir().join(OBJECT_MAP_ROOT_FILE)).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
+        assert!(btree_result.is_ok(), "Bad b-tree load");
+        let btree = btree_result.unwrap();
+        btree
     }
-    assert!(node_result.is_ok(), "Bad b-tree node load");
-    let node = node_result.unwrap();
-    let records = match node.records {
-        AnyRecords::NonLeaf(x, _) => x,
-        _ => { panic!("Wrong b-tree record type!"); },
-    };
-    assert_eq!(records.len(), 123);
-    assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
-    assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
-    assert_eq!(records[0].value.oid, Oid(0x107cfc), "value oid");
-    assert_eq!(records[1].key.oid, Oid(0x440), "key oid");
-    assert_eq!(records[1].key.xid, Xid(0xb93e), "key xid");
-    assert_eq!(records[1].value.oid, Oid(0x12c32f), "value oid");
-    assert_eq!(records[2].key.oid, Oid(0x4a0), "key oid");
-    assert_eq!(records[2].key.xid, Xid(0xb93e), "key xid");
-    assert_eq!(records[2].value.oid, Oid(0x14bff0), "value oid");
+
+    fn load_nonroot_object_map(file: &str) -> BtreeNode<OmapVal> {
+        let btree = load_root_object_map();
+        let mut source = File::open(test_dir().join(file)).expect("Unable to load blob");
+        let mut apfs = APFS { source, block_size: 4096 };
+        let node_result = btree.load_btree_node(&mut apfs, Oid(0), StorageType::Physical);
+        if node_result.is_err() {
+            println!("Error: {:?}", node_result.as_ref().err());
+        }
+        assert!(node_result.is_ok(), "Bad b-tree node load");
+        let node = node_result.unwrap();
+        node
+     }
+
+    #[test]
+    fn can_load_root_nonleaf_object_map_btree() {
+        let btree = load_root_object_map();
+        let records = match btree.root.records {
+            AnyRecords::NonLeaf(x, _) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 85);
+        assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
+        assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
+        assert_eq!(records[0].value.oid, Oid(0x107ab1), "value oid");
+        assert_eq!(records[1].key.oid, Oid(0x2eda), "key oid");
+        assert_eq!(records[1].key.xid, Xid(0x6), "key xid");
+        assert_eq!(records[1].value.oid, Oid(0x148050), "value oid");
+        assert_eq!(records[2].key.oid, Oid(0x5807), "key oid");
+        assert_eq!(records[2].key.xid, Xid(0x8de0ea), "key xid");
+        assert_eq!(records[2].value.oid, Oid(0x1447ea), "value oid");
+    }
+
+    #[test]
+    fn can_load_nonroot_nonleaf_object_map_btree() {
+        let node = load_nonroot_object_map(OBJECT_MAP_NONLEAF_FILE);
+        let records = match node.records {
+            AnyRecords::NonLeaf(x, _) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 123);
+        assert_eq!(records[0].key.oid, Oid(0x404), "key oid");
+        assert_eq!(records[0].key.xid, Xid(0x95d8c3), "key xid");
+        assert_eq!(records[0].value.oid, Oid(0x107cfc), "value oid");
+        assert_eq!(records[1].key.oid, Oid(0x440), "key oid");
+        assert_eq!(records[1].key.xid, Xid(0xb93e), "key xid");
+        assert_eq!(records[1].value.oid, Oid(0x12c32f), "value oid");
+        assert_eq!(records[2].key.oid, Oid(0x4a0), "key oid");
+        assert_eq!(records[2].key.xid, Xid(0xb93e), "key xid");
+        assert_eq!(records[2].value.oid, Oid(0x14bff0), "value oid");
+    }
+
+    #[test]
+    fn can_load_non_root_leaf_object_map_btree() {
+        let node = load_nonroot_object_map(OBJECT_MAP_LEAF_FILE);
+        let records = match node.records {
+            AnyRecords::Leaf(x) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 104);
+        assert_eq!(records[23].key.oid, Oid(0x404),           "key 23 oid");
+        assert_eq!(records[23].key.xid, Xid(9829294),         "key 23 xid");
+        assert_eq!(records[23].value.flags, OvFlags::empty(), "value 23 flags");
+        assert_eq!(records[23].value.size, 4096,              "value 23 size");
+        assert_eq!(records[23].value.paddr, Paddr(1284313),   "value 23 paddr");
+        assert_eq!(records[24].key.oid, Oid(0x404),           "key 24 oid");
+        assert_eq!(records[24].key.xid, Xid(9829474),         "key 24 xid");
+        assert_eq!(records[24].value.flags, OvFlags::empty(), "value 24 flags");
+        assert_eq!(records[24].value.size, 4096,              "value 24 size");
+        assert_eq!(records[24].value.paddr, Paddr(1077411),   "value 24 paddr");
+        assert_eq!(records[25].key.oid, Oid(0x408),           "key 25 oid");
+        assert_eq!(records[25].key.xid, Xid(54),              "key 25 xid");
+        assert_eq!(records[25].value.flags, OvFlags::empty(), "value 25 flags");
+        assert_eq!(records[25].value.size, 4096,              "value 25 size");
+        assert_eq!(records[25].value.paddr, Paddr(1454548),   "value 25 paddr");
+    }
 }
 
 #[test]
