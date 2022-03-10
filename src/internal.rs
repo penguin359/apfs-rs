@@ -178,6 +178,10 @@ impl ObjectTypeAndFlags {
         Ok(ObjectTypeAndFlags(value))
     }
 
+    pub fn new_by_field(r#type: ObjectType, storage: StorageType, flags: ObjTypeFlags) -> ObjectTypeAndFlags {
+        ObjectTypeAndFlags(r#type as u32 | storage as u32 | flags.bits())
+    }
+
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         Self::new(source.read_u32::<LittleEndian>()?)
     }

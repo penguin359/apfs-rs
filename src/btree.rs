@@ -633,6 +633,5 @@ impl Btree<OmapVal> {
                 unimplemented!("B+ Tree traversal incomplete");
             }
         }))
-        // Err(io::Error::new(io::ErrorKind::Other, ""))
     }
 }

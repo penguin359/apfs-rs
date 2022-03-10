@@ -9,6 +9,30 @@ use crate::fletcher::fletcher64;
 use crate::tests::test_dir;
 
 #[test]
+fn test_create_new_object_type_and_flags() {
+    let value = ObjectTypeAndFlags::new_by_field(ObjectType::Invalid, StorageType::Virtual, ObjTypeFlags::empty());
+    assert_eq!(value.0, 0x00000000 | 0x00000000 | 0x00000000);
+    assert_eq!(value.r#type(), ObjectType::Invalid);
+    assert_eq!(value.storage(), StorageType::Virtual);
+    assert_eq!(value.flags(), ObjTypeFlags::empty());
+    let value = ObjectTypeAndFlags::new_by_field(ObjectType::Btree, StorageType::Virtual, ObjTypeFlags::NOHEADER);
+    assert_eq!(value.0, 0x00000002 | 0x00000000 | 0x20000000);
+    assert_eq!(value.r#type(), ObjectType::Btree);
+    assert_eq!(value.storage(), StorageType::Virtual);
+    assert_eq!(value.flags(), ObjTypeFlags::NOHEADER);
+    let value = ObjectTypeAndFlags::new_by_field(ObjectType::Omap, StorageType::Physical, ObjTypeFlags::ENCRYPTED);
+    assert_eq!(value.0, 0x0000000b | 0x40000000 | 0x10000000);
+    assert_eq!(value.r#type(), ObjectType::Omap);
+    assert_eq!(value.storage(), StorageType::Physical);
+    assert_eq!(value.flags(), ObjTypeFlags::ENCRYPTED);
+    let value = ObjectTypeAndFlags::new_by_field(ObjectType::Gbitmap, StorageType::Ephemeral, ObjTypeFlags::ENCRYPTED | ObjTypeFlags::NONPERSISTENT);
+    assert_eq!(value.0, 0x00000019 | 0x80000000 | 0x10000000 | 0x08000000);
+    assert_eq!(value.r#type(), ObjectType::Gbitmap);
+    assert_eq!(value.storage(), StorageType::Ephemeral);
+    assert_eq!(value.flags(), ObjTypeFlags::ENCRYPTED | ObjTypeFlags::NONPERSISTENT);
+}
+
+#[test]
 fn test_load_superblock() {
     let mut buffer = [0u8; NX_DEFAULT_BLOCK_SIZE];
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
