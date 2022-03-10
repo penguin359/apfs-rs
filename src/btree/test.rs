@@ -637,4 +637,43 @@ mod dummy_node {
         check_omap_leaf_record_lookup(&btree, 131, 10, Oid(131), Xid(10), 4096, Paddr(90));
         check_omap_leaf_record_lookup(&btree, 135, 50, Oid(135), Xid(50), 4096, Paddr(95));
     }
+
+    #[test]
+    fn no_record_returned_on_bad_exact_match_from_leaf_node() {
+        let btree = create_dummy_single_node();
+        check_omap_leaf_record_lookup_missing(&btree, 109, 1000);
+        check_omap_leaf_record_lookup_missing(&btree, 111, 1000);
+        check_omap_leaf_record_lookup_missing(&btree, 119, 100);
+        check_omap_leaf_record_lookup_missing(&btree, 121, 200);
+        check_omap_leaf_record_lookup_missing(&btree, 129, 50);
+        check_omap_leaf_record_lookup_missing(&btree, 134, 10);
+        check_omap_leaf_record_lookup_missing(&btree, 136, 50);
+    }
+
+    #[test]
+    fn can_get_inexact_matching_record_from_leaf_node() {
+        let btree = create_dummy_single_node();
+        check_omap_leaf_record_lookup(&btree, 110, u64::MAX, Oid(110), Xid(1000), 4096, Paddr(30));
+        check_omap_leaf_record_lookup(&btree, 120, 199, Oid(120), Xid(100), 4096, Paddr(50));
+        check_omap_leaf_record_lookup(&btree, 120, 201, Oid(120), Xid(200), 4096, Paddr(40));
+        check_omap_leaf_record_lookup(&btree, 120, 299, Oid(120), Xid(200), 4096, Paddr(40));
+        check_omap_leaf_record_lookup(&btree, 120, 30000, Oid(120), Xid(300), 4096, Paddr(60));
+        check_omap_leaf_record_lookup(&btree, 130, 51, Oid(130), Xid(51), 4096, Paddr(101));
+        check_omap_leaf_record_lookup(&btree, 130, u64::MAX, Oid(130), Xid(51), 4096, Paddr(101));
+        check_omap_leaf_record_lookup(&btree, 131, 49, Oid(131), Xid(10), 4096, Paddr(90));
+        check_omap_leaf_record_lookup(&btree, 135, 65, Oid(135), Xid(50), 4096, Paddr(95));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
+        let btree = create_dummy_single_node();
+        check_omap_leaf_record_lookup_missing(&btree, 110, 999);
+        check_omap_leaf_record_lookup_missing(&btree, 120, 0);
+        check_omap_leaf_record_lookup_missing(&btree, 120, 50);
+        check_omap_leaf_record_lookup_missing(&btree, 120, 99);
+        check_omap_leaf_record_lookup_missing(&btree, 130, 49);
+        check_omap_leaf_record_lookup_missing(&btree, 130, 1);
+        check_omap_leaf_record_lookup_missing(&btree, 131, 9);
+        check_omap_leaf_record_lookup_missing(&btree, 135, 49);
+    }
 }
