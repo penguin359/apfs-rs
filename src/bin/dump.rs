@@ -15,6 +15,7 @@ fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records
                 }
                 assert!(node_result.is_ok(), "Bad b-tree node load");
                 let node = node_result.unwrap();
+                println!("Volume Object Map sub B-Tree: {:#?}", node);
                 dump_omap_apfs_records(btree, apfs, node.records);
             }
             vec![]

@@ -244,7 +244,7 @@ fn load_test_apfs_object_map_btree(file: &str) -> (APFS<File>, NxSuperblockObjec
 
 #[test]
 fn test_load_object_map() {
-    let (mut apfs, _, omap) = load_test_apfs_object_map(TEST_APFS_FILE);
+    let (_, _, omap) = load_test_apfs_object_map(TEST_APFS_FILE);
 }
 
 #[test]
