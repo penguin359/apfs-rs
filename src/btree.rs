@@ -502,7 +502,7 @@ pub struct BtreeNode<V: LeafValue> {
 }
 
 impl BtreeNode<OmapVal> {
-    fn get_record<'a>(&'a self, key: <OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
+    fn get_record<'a>(&'a self, key: &<OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
         match self.records {
             AnyRecords::Leaf(ref x) => {
                 x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y))
@@ -628,8 +628,21 @@ impl<V> Btree<V> where
 }
 
 impl Btree<OmapVal> {
-    pub fn get_record<'a>(&'a self, key: OmapKey) -> io::Result<Option<&'a OmapRecord>> {
-        Ok(self.root.get_record(key).map(|r| match r {
+    /*
+    pub fn get_record_node<'a, S: Read + Seek>(&'a self, apfs: &mut APFS<S>, node: &'a BtreeNode<OmapVal>, key: &OmapKey) -> io::Result<Option<&'a OmapRecord>> {
+        Ok(node.get_record(key).map(|r| match r {
+            AnyRecord::Leaf(body) => body,
+            AnyRecord::NonLeaf(child, _) => {
+                let subnode = self.load_btree_node(apfs, child.value.oid, StorageType::Physical).unwrap();
+                self.get_record_node(apfs, &subnode, key).unwrap().unwrap()
+            },
+        }))
+    }
+    */
+
+    pub fn get_record<'a, S: Read + Seek>(&'a self, apfs: &mut APFS<S>, key: &OmapKey) -> io::Result<Option<&'a OmapRecord>> {
+        //self.get_record_node(apfs, &self.root, key)
+        Ok(self.root.get_record(&key).map(|r| match r {
             AnyRecord::Leaf(body) => body,
             _ => {
                 unimplemented!("B+ Tree traversal incomplete");

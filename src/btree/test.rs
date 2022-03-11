@@ -622,7 +622,7 @@ fn test_load_volume_superblock() {
 }
 
 fn check_omap_nonleaf_record_lookup_node(node: &BtreeNode<OmapVal>, key_oid: u64, key_xid: u64, oid: Oid, xid: Xid, value: Oid) {
-    let any_record = node.get_record(OmapKey::new(key_oid, key_xid));
+    let any_record = node.get_record(&OmapKey::new(key_oid, key_xid));
     assert!(any_record.is_some(), "no matching record found");
     let any_record = any_record.unwrap();
     let record = match any_record {
@@ -649,11 +649,11 @@ fn check_omap_leaf_record_lookup(any_record: Option<AnyRecord<OmapVal>>, oid: Oi
 }
 
 fn check_omap_leaf_record_lookup_node(node: &BtreeNode<OmapVal>, key_oid: u64, key_xid: u64, oid: Oid, xid: Xid, size: u32, paddr: Paddr) {
-   check_omap_leaf_record_lookup(node.get_record(OmapKey::new(key_oid, key_xid)), oid, xid, size, paddr)
+   check_omap_leaf_record_lookup(node.get_record(&OmapKey::new(key_oid, key_xid)), oid, xid, size, paddr)
 }
 
 fn check_omap_leaf_record_lookup_btree<S: Read + Seek>(btree: &Btree<OmapVal>, apfs: &mut APFS<S>, key_oid: u64, key_xid: u64, oid: Oid, xid: Xid, size: u32, paddr: Paddr) {
-    let record = btree.get_record(OmapKey::new(key_oid, key_xid)).expect("error looking up record");
+    let record = btree.get_record(apfs, &OmapKey::new(key_oid, key_xid)).expect("error looking up record");
     check_omap_leaf_record_lookup(record.map(|x| AnyRecord::Leaf(x)), oid, xid, size, paddr);
 }
 
@@ -662,11 +662,11 @@ fn check_omap_record_lookup_missing(any_record: Option<AnyRecord<OmapVal>>) {
 }
 
 fn check_omap_record_lookup_missing_node(node: &BtreeNode<OmapVal>, key_oid: u64, key_xid: u64) {
-    check_omap_record_lookup_missing(node.get_record(OmapKey::new(key_oid, key_xid)))
+    check_omap_record_lookup_missing(node.get_record(&OmapKey::new(key_oid, key_xid)))
 }
 
 fn check_omap_record_lookup_missing_btree<S: Read + Seek>(btree: &Btree<OmapVal>, apfs: &mut APFS<S>, key_oid: u64, key_xid: u64) {
-    let record = btree.get_record(OmapKey::new(key_oid, key_xid)).expect("error looking up record");
+    let record = btree.get_record(apfs, &OmapKey::new(key_oid, key_xid)).expect("error looking up record");
     check_omap_record_lookup_missing(record.map(|x| AnyRecord::Leaf(x)))
 }
 
