@@ -503,12 +503,14 @@ pub struct BtreeNode<V: LeafValue> {
 
 impl BtreeNode<OmapVal> {
     fn get_record<'a>(&'a self, key: <OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
-        Some(match self.records {
+        match self.records {
             AnyRecords::Leaf(ref x) => {
-                return x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y));
+                x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y))
             },
-            AnyRecords::NonLeaf(ref x, _) => AnyRecord::NonLeaf(x.get(0).unwrap(), PhantomData),
-        })
+            AnyRecords::NonLeaf(ref x, _) => {
+                x.into_iter().rev().filter(|y| key.r#match(&y.key) != Ordering::Less).nth(0).map(|y| AnyRecord::NonLeaf(y, PhantomData))
+            },
+        }
     }
 }
 

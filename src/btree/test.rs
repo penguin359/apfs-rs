@@ -374,7 +374,58 @@ mod object_map {
     }
 
     #[test]
-    fn can_load_non_root_leaf_object_map_btree() {
+    fn can_get_exact_matching_record_from_nonleaf_node() {
+        let node = load_nonroot_object_map(OBJECT_MAP_NONLEAF_FILE);
+        check_omap_nonleaf_record_lookup(&node, 0x404, 0x95d8c3, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+        check_omap_nonleaf_record_lookup(&node, 0x440, 0xb93e, Oid(0x440), Xid(0xb93e), Oid(0x12c32f));
+        check_omap_nonleaf_record_lookup(&node, 0x4a0, 0xb93e, Oid(0x4a0), Xid(0xb93e), Oid(0x14bff0));
+        check_omap_nonleaf_record_lookup(&node, 0x2e78, 0x8e3e0c, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_exact_match_from_nonleaf_node() {
+        let node = load_nonroot_object_map(OBJECT_MAP_NONLEAF_FILE);
+        check_omap_record_lookup_missing(&node, 0x403, 0x95d8c3);
+        check_omap_record_lookup_missing(&node, 0x403, 0xb93e);
+        check_omap_record_lookup_missing(&node, 0x403, u64::MAX);
+        check_omap_record_lookup_missing(&node, 0x0, 0x95d8c3);
+        check_omap_record_lookup_missing(&node, 0x0, u64::MAX);
+    }
+
+    #[test]
+    fn can_get_inexact_matching_record_from_nonleaf_node() {
+        let node = load_nonroot_object_map(OBJECT_MAP_NONLEAF_FILE);
+        check_omap_nonleaf_record_lookup(&node, 0x404, 0x95d8c4, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+        check_omap_nonleaf_record_lookup(&node, 0x404, u64::MAX, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+        check_omap_nonleaf_record_lookup(&node, 0x405, 0, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+        check_omap_nonleaf_record_lookup(&node, 0x439, u64::MAX, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+        check_omap_nonleaf_record_lookup(&node, 0x440, 0xb93d, Oid(0x404), Xid(0x95d8c3), Oid(0x107cfc));
+
+        check_omap_nonleaf_record_lookup(&node, 0x440, 0xb93f, Oid(0x440), Xid(0xb93e), Oid(0x12c32f));
+        check_omap_nonleaf_record_lookup(&node, 0x440, u64::MAX, Oid(0x440), Xid(0xb93e), Oid(0x12c32f));
+        check_omap_nonleaf_record_lookup(&node, 0x4a0, 0xb93d, Oid(0x440), Xid(0xb93e), Oid(0x12c32f));
+
+        check_omap_nonleaf_record_lookup(&node, 0x4a0, 0xb93f, Oid(0x4a0), Xid(0xb93e), Oid(0x14bff0));
+        check_omap_nonleaf_record_lookup(&node, 0x4ea, 0x95d8c1, Oid(0x4a0), Xid(0xb93e), Oid(0x14bff0));
+
+        check_omap_nonleaf_record_lookup(&node, 0x2e78, 0x8e3e0d, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+        check_omap_nonleaf_record_lookup(&node, 0x2e78, u64::MAX, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+        check_omap_nonleaf_record_lookup(&node, 0x2e79, 0, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+        check_omap_nonleaf_record_lookup(&node, u64::MAX, 0, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+        check_omap_nonleaf_record_lookup(&node, u64::MAX, u64::MAX, Oid(0x2e78), Xid(0x8e3e0c), Oid(0x14e09d));
+    }
+
+    #[test]
+    fn no_record_returned_on_bad_inexact_match_from_nonleaf_node() {
+        let node = load_nonroot_object_map(OBJECT_MAP_NONLEAF_FILE);
+        check_omap_record_lookup_missing(&node, 0x404, 0x95d8c2);
+        check_omap_record_lookup_missing(&node, 0x404, 0x123456);
+        check_omap_record_lookup_missing(&node, 0x404, 0x1000);
+        check_omap_record_lookup_missing(&node, 0x404, 0);
+    }
+
+    #[test]
+    fn can_load_nonroot_leaf_object_map_btree() {
         let node = load_nonroot_object_map(OBJECT_MAP_LEAF_FILE);
         let records = match node.records {
             AnyRecords::Leaf(x) => x,
