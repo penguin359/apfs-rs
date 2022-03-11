@@ -191,6 +191,12 @@ pub struct ApfsSuperblockObject {
 }
 
 #[derive(Debug)]
+pub struct ChunkInfoBlockObject {
+    header: ObjPhys,
+    pub body: ChunkInfoBlock,
+}
+
+#[derive(Debug)]
 pub struct SpacemanObject {
     header: ObjPhys,
     pub body: SpacemanPhys,
@@ -211,6 +217,7 @@ pub enum APFSObject {
     BtreeNode(BtreeNodeObject),
     ApfsSuperblock(ApfsSuperblockObject),
     Spaceman(SpacemanObject),
+    SpacemanCib(ChunkInfoBlockObject),
     NxReaper(NxReaperObject),
 }
 
@@ -288,6 +295,11 @@ impl<S: Read + Seek> APFS<S> {
                 APFSObject::Spaceman(SpacemanObject {
                 header,
                 body: SpacemanPhys::import(&mut cursor)?,
+            }),
+            ObjectType::SpacemanCib =>
+                APFSObject::SpacemanCib(ChunkInfoBlockObject {
+                header,
+                body: ChunkInfoBlock::import(&mut cursor)?,
             }),
             ObjectType::NxReaper =>
                 APFSObject::NxReaper(NxReaperObject {

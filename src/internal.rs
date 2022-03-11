@@ -1167,7 +1167,7 @@ impl ChunkInfo {
 }
 
 #[derive(Debug)]
-struct ChunkInfoBlock {
+pub struct ChunkInfoBlock {
     //cib_o: ObjPhys,
     index: u32,
     chunk_info_count: u32,
@@ -1397,11 +1397,11 @@ pub struct SpacemanPhys {
     dev: [SpacemanDevice; Smdev::Count as usize],
     flags: SpacemanFlags,
     ip_bm_tx_multiplier: u32,
-    ip_block_count: u64,
+    pub ip_block_count: u64,
     ip_bm_size_in_blocks: u32,
-    ip_bm_block_count: u32,
-    ip_bm_base: Paddr,
-    ip_base: Paddr,
+    pub ip_bm_block_count: u32,
+    pub ip_bm_base: Paddr,
+    pub ip_base: Paddr,
     fs_reserve_block_count: u64,
     fs_reserve_alloc_count: u64,
     fq: [SpacemanFreeQueue; Sfq::Count as usize],

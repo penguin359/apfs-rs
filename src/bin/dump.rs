@@ -69,12 +69,22 @@ fn main() {
     assert!(superblock.body.xp_desc_blocks & (1 << 31) == 0);
     assert!(superblock.body.xp_data_blocks & (1 << 31) == 0);
     for idx in 0..superblock.body.xp_desc_blocks {
-       let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64)).unwrap();
-       println!("Checkpoint descriptor object: {:#?}", object);
+        let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64)).unwrap();
+        println!("Checkpoint descriptor object: {:#?}", &object);
     }
     for idx in 0..superblock.body.xp_data_blocks {
-       let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
-       println!("Checkpoint data object: {:#?}", object);
+        let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
+        println!("Checkpoint data object: {:#?}", &object);
+        if let Ok(APFSObject::Spaceman(body)) = object {
+            let subobject = apfs.load_object_addr(body.body.ip_base).unwrap();
+            println!("Internal pool data object: {:#?}", &subobject);
+            // for subidx in 0..body.body.ip_block_count {
+            //     let subobject = apfs.load_object_addr(Paddr(body.body.ip_base.0 + subidx as i64)).unwrap();
+            //     println!("Internal pool data object: {:#?}", &subobject);
+            // }
+            // let subobject = apfs.load_object_addr(body.body.ip_bm_base).unwrap();
+            // println!("Internal pool bitmap data object: {:#?}", &subobject);
+       }
     }
     if superblock.body.keylocker.start_paddr.0 != 0 &&
        superblock.body.keylocker.block_count != 0 {
