@@ -554,6 +554,47 @@ mod object_map {
         let btree = load_object_map_from_dummy_source();
     }
 
+    #[test]
+    #[ignore = "not implemented yet, will require some work"]
+    fn can_get_exact_matching_record_from_btree() {
+        let btree = load_object_map_from_dummy_source();
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 9829294, Oid(0x404), Xid(9829294), 4096, Paddr(1284313));
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 9829474, Oid(0x404), Xid(9829474), 4096, Paddr(1077411));
+        check_omap_leaf_record_lookup_btree(&btree, 0x408, 54, Oid(0x408), Xid(54), 4096, Paddr(1454548));
+    }
+
+    #[test]
+    #[ignore = "not implemented yet, will require some work"]
+    fn no_record_returned_on_bad_exact_match_from_btree() {
+        let btree = load_object_map_from_dummy_source();
+        check_omap_record_lookup_missing_btree(&btree, 0x403, 9829294);
+        check_omap_record_lookup_missing_btree(&btree, 0x405, 9829474);
+        check_omap_record_lookup_missing_btree(&btree, 0x407, 54);
+        check_omap_record_lookup_missing_btree(&btree, 0x409, 54);
+    }
+
+    #[test]
+    #[ignore = "not implemented yet, will require some work"]
+    fn can_get_inexact_matching_record_from_btree() {
+        let btree = load_object_map_from_dummy_source();
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 9829295, Oid(0x404), Xid(9829294), 4096, Paddr(1284313));
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 9829473, Oid(0x404), Xid(9829294), 4096, Paddr(1284313));
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 9829475, Oid(0x404), Xid(9829474), 4096, Paddr(1077411));
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, 19829474, Oid(0x404), Xid(9829474), 4096, Paddr(1077411));
+        check_omap_leaf_record_lookup_btree(&btree, 0x404, u64::MAX, Oid(0x404), Xid(9829474), 4096, Paddr(1077411));
+        check_omap_leaf_record_lookup_btree(&btree, 0x408, 55, Oid(0x408), Xid(54), 4096, Paddr(1454548));
+        check_omap_leaf_record_lookup_btree(&btree, 0x408, u64::MAX, Oid(0x408), Xid(54), 4096, Paddr(1454548));
+    }
+
+    #[test]
+    #[ignore = "not implemented yet, will require some work"]
+    fn no_record_returned_on_bad_inexact_match_from_btree() {
+        let btree = load_object_map_from_dummy_source();
+        check_omap_record_lookup_missing_btree(&btree, 0x404, 0);
+        check_omap_record_lookup_missing_btree(&btree, 0x404, 9820354);
+        check_omap_record_lookup_missing_btree(&btree, 0x408, 0);
+        check_omap_record_lookup_missing_btree(&btree, 0x408, 53);
+    }
 }
 
 #[test]
