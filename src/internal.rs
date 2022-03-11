@@ -1145,6 +1145,110 @@ impl WrappedMetaCryptoState  {
 
 // Space Manager
 
+#[derive(Debug)]
+struct ChunkInfo {
+    xid: u64,
+    addr: u64,
+    block_count: u32,
+    free_count: u32,
+    bitmap_addr: Paddr,
+}
+
+impl ChunkInfo {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            xid: source.read_u64::<LittleEndian>()?,
+            addr: source.read_u64::<LittleEndian>()?,
+            block_count: source.read_u32::<LittleEndian>()?,
+            free_count: source.read_u32::<LittleEndian>()?,
+            bitmap_addr: Paddr::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct ChunkInfoBlock {
+    //cib_o: ObjPhys,
+    index: u32,
+    chunk_info_count: u32,
+    chunk_info: Vec<ChunkInfo>,
+}
+
+impl ChunkInfoBlock {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            index: source.read_u32::<LittleEndian>()?,
+            chunk_info_count: source.read_u32::<LittleEndian>()?,
+            chunk_info: vec![],
+        };
+        for _ in 0..value.chunk_info_count {
+            value.chunk_info.push(ChunkInfo::import(source)?);
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct CibAddrBlock {
+    //cab_o: ObjPhys,
+    index: u32,
+    cib_count: u32,
+    cib_addr: Vec<Paddr>,
+}
+
+impl CibAddrBlock {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            index: source.read_u32::<LittleEndian>()?,
+            cib_count: source.read_u32::<LittleEndian>()?,
+            cib_addr: vec![],
+        };
+        for _ in 0..value.cib_count {
+            value.cib_addr.push(Paddr::import(source)?);
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct SpacemanFreeQueueVal(u64);
+
+impl SpacemanFreeQueueVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self(source.read_u64::<LittleEndian>()?))
+    }
+}
+
+#[derive(Debug)]
+struct SpacemanFreeQueueKey {
+    xid: Xid,
+    paddr: Paddr,
+}
+
+impl SpacemanFreeQueueKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            xid: Xid::import(source)?,
+            paddr: Paddr::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct SpacemanFreeQueueEntry {
+    key: SpacemanFreeQueueKey,
+    count: SpacemanFreeQueueVal,
+}
+
+impl SpacemanFreeQueueEntry {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            key: SpacemanFreeQueueKey::import(source)?,
+            count: SpacemanFreeQueueVal::import(source)?,
+        })
+    }
+}
+
 #[derive(Copy, Clone, Default, Debug)]
 struct SpacemanFreeQueue {
     count: u64,
@@ -1168,13 +1272,6 @@ impl SpacemanFreeQueue {
             reserved: source.read_u64::<LittleEndian>()?,
         })
     }
-}
-
-enum Sfq {
-    IP = 0,
-    MAIN = 1,
-    TIER2 = 2,
-    COUNT = 3,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -1202,12 +1299,6 @@ impl SpacemanDevice {
             reserved2: source.read_u64::<LittleEndian>()?,
         })
     }
-}
-
-enum Smdev {
-    MAIN = 0,
-    TIER2 = 1,
-    COUNT = 2,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -1257,23 +1348,37 @@ impl SpacemanAllocationZoneInfoPhys {
     }
 }
 
+enum Smdev {
+    Main = 0,
+    Tier2 = 1,
+    Count = 2,
+}
+
 const SM_DATAZONE_ALLOCZONE_COUNT: usize = 8;
 
+// TODO Verify array nesting order is correct
 #[derive(Copy, Clone, Default, Debug)]
 struct SpacemanDatazoneInfoPhys {
-    allocation_zones: [[SpacemanAllocationZoneInfoPhys; SM_DATAZONE_ALLOCZONE_COUNT]; Smdev::COUNT as usize],
+    allocation_zones: [[SpacemanAllocationZoneInfoPhys; SM_DATAZONE_ALLOCZONE_COUNT]; Smdev::Count as usize],
 }
 
 impl SpacemanDatazoneInfoPhys {
     fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = SpacemanDatazoneInfoPhys::default();
         for outer in 0..SM_DATAZONE_ALLOCZONE_COUNT {
-            for inner in 0..Smdev::COUNT as usize {
+            for inner in 0..Smdev::Count as usize {
                 value.allocation_zones[inner][outer] = SpacemanAllocationZoneInfoPhys::import(source)?;
             }
         }
         Ok(value)
     }
+}
+
+enum Sfq {
+    Ip = 0,
+    Main = 1,
+    Tier2 = 2,
+    Count = 3,
 }
 
 bitflags! {
@@ -1289,7 +1394,7 @@ pub struct SpacemanPhys {
     blocks_per_chunk: u32,
     chunks_per_cib: u32,
     cibs_per_cab: u32,
-    dev: [SpacemanDevice; Smdev::COUNT as usize],
+    dev: [SpacemanDevice; Smdev::Count as usize],
     flags: SpacemanFlags,
     ip_bm_tx_multiplier: u32,
     ip_block_count: u64,
@@ -1299,7 +1404,7 @@ pub struct SpacemanPhys {
     ip_base: Paddr,
     fs_reserve_block_count: u64,
     fs_reserve_alloc_count: u64,
-    fq: [SpacemanFreeQueue; Sfq::COUNT as usize],
+    fq: [SpacemanFreeQueue; Sfq::Count as usize],
     ip_bm_free_head: u16,
     ip_bm_free_tail: u16,
     ip_bm_xid_offset: u32,
@@ -1311,16 +1416,16 @@ pub struct SpacemanPhys {
 }
 
 impl SpacemanPhys {
-    fn import_dev(source: &mut dyn Read) -> io::Result<[SpacemanDevice; Smdev::COUNT as usize]> {
-        let mut values = [SpacemanDevice::default(); Smdev::COUNT as usize];
+    fn import_dev(source: &mut dyn Read) -> io::Result<[SpacemanDevice; Smdev::Count as usize]> {
+        let mut values = [SpacemanDevice::default(); Smdev::Count as usize];
         for entry in values.iter_mut() {
             *entry = SpacemanDevice::import(source)?;
         }
         Ok(values)
     }
 
-    fn import_fq(source: &mut dyn Read) -> io::Result<[SpacemanFreeQueue; Sfq::COUNT as usize]> {
-        let mut values = [SpacemanFreeQueue::default(); Sfq::COUNT as usize];
+    fn import_fq(source: &mut dyn Read) -> io::Result<[SpacemanFreeQueue; Sfq::Count as usize]> {
+        let mut values = [SpacemanFreeQueue::default(); Sfq::Count as usize];
         for entry in values.iter_mut() {
             *entry = SpacemanFreeQueue::import(source)?;
         }
@@ -1356,6 +1461,14 @@ impl SpacemanPhys {
         })
     }
 }
+
+// TODO Verify these constants are defined correctly
+const CI_COUNT_MASK: u32 = 0x000fffff;
+const CI_COUNT_RESERVED_MASK: u32 = 0xfff00000;
+
+const SPACEMAN_IP_BM_TX_MULTIPLIER: usize = 16;
+const SPACEMAN_IP_BM_INDEX_INVALID: u16 = 0xffff;
+const SPACEMAN_IP_BM_BLOCK_COUNT_MAX: u16 = 0xfffe;
 
 
 // File-System Constants
@@ -2075,7 +2188,7 @@ enum ApfsReapPhase {
     Snapshots = 1,
     ActiveFs = 2,
     DestroyOmap = 3,
-    Done = 4
+    Done = 4,
 }
 
 #[derive(Debug)]
