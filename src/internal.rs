@@ -555,7 +555,7 @@ impl OmapPhys {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OmapKey {
         pub oid: Oid,
         pub xid: Xid,
@@ -587,7 +587,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OmapVal {
         pub flags: OvFlags,
         pub size: u32,

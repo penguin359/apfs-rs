@@ -227,7 +227,7 @@ pub trait Record: Debug {
     fn value(&self) -> &Self::Value;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LeafRecord<V> where
     V: LeafValue {
 
@@ -442,7 +442,7 @@ impl LeafValue for ApfsValue {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OidValue {
     pub oid: Oid,
 }
@@ -455,7 +455,7 @@ impl OidValue {
 
 impl Value for OidValue {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NonLeafRecord<K: Key> {
     key: K,
     pub value: OidValue,
@@ -477,9 +477,13 @@ mod test;
 // }
 
 #[derive(Debug)]
-pub enum AnyRecord<'a, V: LeafValue> {
-    Leaf(&'a LeafRecord<V>),
-    NonLeaf(&'a NonLeafRecord<V::Key>, PhantomData<V>),
+// pub enum AnyRecord<'a, V: LeafValue> {
+//     Leaf(&'a LeafRecord<V>),
+//     NonLeaf(&'a NonLeafRecord<V::Key>, PhantomData<V>),
+// }
+pub enum AnyRecord<V: LeafValue> {
+    Leaf(LeafRecord<V>),
+    NonLeaf(NonLeafRecord<V::Key>, PhantomData<V>),
 }
 
 #[derive(Debug)]
@@ -503,13 +507,13 @@ pub struct BtreeNode<V: LeafValue> {
 }
 
 impl BtreeNode<OmapVal> {
-    fn get_record<'a>(&'a self, key: &<OmapVal as LeafValue>::Key) -> Option<AnyRecord<'a, OmapVal>> {
+    fn get_record<'a>(&'a self, key: &<OmapVal as LeafValue>::Key) -> Option<AnyRecord<OmapVal>> {
         match self.records {
             AnyRecords::Leaf(ref x) => {
-                x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y))
+                x.into_iter().rev().filter(|y| key.r#match(&y.key) == Ordering::Equal).nth(0).map(|y| AnyRecord::Leaf(y.clone()))
             },
             AnyRecords::NonLeaf(ref x, _) => {
-                x.into_iter().rev().filter(|y| key.r#match(&y.key) != Ordering::Less).nth(0).map(|y| AnyRecord::NonLeaf(y, PhantomData))
+                x.into_iter().rev().filter(|y| key.r#match(&y.key) != Ordering::Less).nth(0).map(|y| AnyRecord::NonLeaf(y.clone(), PhantomData))
             },
         }
     }
@@ -641,7 +645,7 @@ impl Btree<OmapVal> {
     }
     */
 
-    pub fn get_record<'a, S: Read + Seek>(&'a self, apfs: &mut APFS<S>, key: &OmapKey) -> io::Result<Option<&'a OmapRecord>> {
+    pub fn get_record<'a, S: Read + Seek>(&'a self, apfs: &mut APFS<S>, key: &OmapKey) -> io::Result<Option<OmapRecord>> {
         //self.get_record_node(apfs, &self.root, key)
         Ok(self.root.get_record(&key).map(|r| match r {
             AnyRecord::Leaf(body) => body,
