@@ -199,7 +199,7 @@ pub struct SpacemanObject {
 #[derive(Debug)]
 pub struct NxReaperObject {
     header: ObjPhys,
-    //pub body: NxReaperPhys,
+    pub body: NxReaperPhys,
 }
 
 #[derive(Debug)]
@@ -292,7 +292,7 @@ impl<S: Read + Seek> APFS<S> {
             ObjectType::NxReaper =>
                 APFSObject::NxReaper(NxReaperObject {
                 header,
-                /*body: SpacemanPhys::import(&mut cursor)?,*/
+                body: NxReaperPhys::import(&mut cursor)?,
             }),
             _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", header.r#type.r#type()))); },
         };

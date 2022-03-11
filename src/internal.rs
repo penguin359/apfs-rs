@@ -1937,3 +1937,200 @@ impl JSiblingMapVal {
         })
     }
 }
+
+
+// Reaper
+
+bitflags! {
+    pub struct NrFlags: u32 {
+        const BHM_FLAG = 0x00000001;
+        const CONTINUE = 0x00000002;
+    }
+}
+
+bitflags! {
+    pub struct NrlFlags: u32 {
+        const INDEX_INVALID = 0xffffffff;
+    }
+}
+
+bitflags! {
+    pub struct NrleFlags: u32 {
+        const VALID = 0x00000001;
+        const REAP_ID_RECORD = 0x00000002;
+        const CALL = 0x00000004;
+        const COMPLETION = 0x00000008;
+        const CLEANUP = 0x00000010;
+    }
+}
+
+#[derive(Debug)]
+pub struct NxReaperPhys {
+    //nr_o: ObjPhys,
+    next_reap_id: u64,
+    completed_id: u64,
+    head: Oid,
+    tail: Oid,
+    flags: NrFlags,
+    rlcount: u32,
+    r#type: u32,
+    size: u32,
+    fs_oid: Oid,
+    oid: Oid,
+    xid: Xid,
+    nrle_flags: NrleFlags,
+    state_buffer_size: u32,
+    state_buffer: Vec<u8>,
+}
+
+impl NxReaperPhys {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            next_reap_id: source.read_u64::<LittleEndian>()?,
+            completed_id: source.read_u64::<LittleEndian>()?,
+            head: Oid::import(source)?,
+            tail: Oid::import(source)?,
+            flags: NrFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown reaper flags"))?,
+            rlcount: source.read_u32::<LittleEndian>()?,
+            r#type: source.read_u32::<LittleEndian>()?,
+            size: source.read_u32::<LittleEndian>()?,
+            fs_oid: Oid::import(source)?,
+            oid: Oid::import(source)?,
+            xid: Xid::import(source)?,
+            nrle_flags: NrleFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown reaper list entry flags"))?,
+            state_buffer_size: source.read_u32::<LittleEndian>()?,
+            state_buffer: vec![],
+        };
+        value.state_buffer.resize(value.state_buffer_size as usize, 0);
+        source.read(&mut value.state_buffer)?;
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct NxReapListEntry {
+    next: u32,
+    flags: NrleFlags,
+    r#type: u32,
+    size: u32,
+    fs_oid: Oid,
+    oid: Oid,
+    xid: Xid,
+}
+
+impl NxReapListEntry {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            next: source.read_u32::<LittleEndian>()?,
+            flags: NrleFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown reaper list entry flags"))?,
+            r#type: source.read_u32::<LittleEndian>()?,
+            size: source.read_u32::<LittleEndian>()?,
+            fs_oid: Oid::import(source)?,
+            oid: Oid::import(source)?,
+            xid: Xid::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct NxReapListPhys {
+    //nrl_o: ObjPhys,
+    next: Oid,
+    flags: NrlFlags,
+    max: u32,
+    count: u32,
+    first: u32,
+    last: u32,
+    free: u32,
+    entries: Vec<NxReapListEntry>,
+}
+
+impl NxReapListPhys {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            next: Oid::import(source)?,
+            flags: NrlFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown reaper list flags"))?,
+            max: source.read_u32::<LittleEndian>()?,
+            count: source.read_u32::<LittleEndian>()?,
+            first: source.read_u32::<LittleEndian>()?,
+            last: source.read_u32::<LittleEndian>()?,
+            free: source.read_u32::<LittleEndian>()?,
+            entries: vec![],
+        };
+        for _ in 0..value.count {
+            value.entries.push(NxReapListEntry::import(source)?);
+        }
+        Ok(value)
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+enum ApfsReapPhase {
+    Start = 0,
+    Snapshots = 1,
+    ActiveFs = 2,
+    DestroyOmap = 3,
+    Done = 4
+}
+
+#[derive(Debug)]
+struct OmapReapState {
+    omr_phase: u32,
+    omr_ok: OmapKey,
+}
+
+impl OmapReapState {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            omr_phase: source.read_u32::<LittleEndian>()?,
+            omr_ok: OmapKey::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct OmapCleanupState {
+    omc_cleaning: u32,
+    omc_omsflags: u32,
+    omc_sxidprev: Xid,
+    omc_sxidstart: Xid,
+    omc_sxidend: Xid,
+    omc_sxidnext: Xid,
+    omc_curkey: OmapKey,
+}
+
+impl OmapCleanupState {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            omc_cleaning: source.read_u32::<LittleEndian>()?,
+            omc_omsflags: source.read_u32::<LittleEndian>()?,
+            omc_sxidprev: Xid::import(source)?,
+            omc_sxidstart: Xid::import(source)?,
+            omc_sxidend: Xid::import(source)?,
+            omc_sxidnext: Xid::import(source)?,
+            omc_curkey: OmapKey::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct ApfsReapState {
+    last_pbn: u64,
+    cur_snap_xid: Xid,
+    phase: ApfsReapPhase,
+}
+
+impl ApfsReapState {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            last_pbn: source.read_u64::<LittleEndian>()?,
+            cur_snap_xid: Xid::import(source)?,
+            phase: ApfsReapPhase::from_u32(source.read_u32::<LittleEndian>()?).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown APFS Reap Phase"))?,
+        })
+    }
+}
