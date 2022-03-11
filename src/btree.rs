@@ -577,22 +577,14 @@ impl<V> Btree<V> where
             let mut value_cursor = Cursor::new(val_data);
             let key = V::Key::import(&mut key_cursor)?;
             if body.body.flags.contains(BtnFlags::LEAF) {
-                if body.header.subtype.r#type() == ObjectType::Omap  {
+                if body.header.subtype.r#type() == ObjectType::Omap ||
+                   body.header.subtype.r#type() == ObjectType::Fstree {
                     let value = V::import(&mut value_cursor, &key)?;
                     let record = LeafRecord {
                         key,
                         value,
                     };
                     records.push(record);
-                } else if(body.header.subtype.r#type() == ObjectType::Fstree) {
-                    if let Ok(key) = V::Key::import(&mut key_cursor) {
-                        let value = V::import(&mut value_cursor, &key)?;
-                        let record = LeafRecord {
-                            key,
-                            value,
-                        };
-                        records.push(record);
-                    }
                 }
             } else {
                 nrecords.push(NonLeafRecord {
