@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, rc::Rc};
 
 use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, LeafRecord, InoExtType, InodeXdata};
 
@@ -34,7 +34,7 @@ fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records
         assert!(root_tree_result.is_ok(), "Bad b-tree load");
         let mut root_tree = root_tree_result.unwrap();
         println!("Volume Root B-Tree: {:#?}", root_tree);
-        let records = std::mem::replace(&mut root_tree.root.records, AnyRecords::Leaf(vec![]));
+        let records = std::mem::replace(&mut Rc::get_mut(&mut root_tree.root).unwrap().records, AnyRecords::Leaf(vec![]));
         dump_apfs_records(&root_tree, apfs, records);
     }
 }
@@ -107,8 +107,8 @@ fn main() {
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
     println!("Superblock Object Map B-Tree: {:#?}", btree);
-    let records: Vec<OmapRecord> = match btree.root.records {
-        AnyRecords::Leaf(x) => x,
+    let records: &Vec<OmapRecord> = match &btree.root.records {
+        AnyRecords::Leaf(ref x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
     };
     for record in records {
@@ -130,7 +130,7 @@ fn main() {
         assert!(btree_result.is_ok(), "Bad b-tree load");
         let mut btree = btree_result.unwrap();
         println!("Volume Object Map B-Tree: {:#?}", btree);
-        let records = std::mem::replace(&mut btree.root.records, AnyRecords::Leaf(vec![]));
+        let records = std::mem::replace(&mut Rc::get_mut(&mut btree.root).unwrap().records, AnyRecords::Leaf(vec![]));
         dump_omap_apfs_records(&btree, &mut apfs, records);
 
         // let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);

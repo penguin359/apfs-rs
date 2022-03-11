@@ -284,8 +284,8 @@ fn test_load_object_map() {
 #[test]
 fn test_load_object_map_btree() {
     let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
-    let records: Vec<OmapRecord> = match btree.root.records {
-        AnyRecords::Leaf(x) => x,
+    let records = match &btree.root.records {
+        AnyRecords::Leaf(ref x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
     };
     assert_eq!(records.len(), 1);
@@ -303,8 +303,8 @@ fn test_load_object_map_btree_dummy() {
     let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(0), StorageType::Physical);
     assert!(btree_result.is_ok(), "Bad b-tree load");
     let btree = btree_result.unwrap();
-    let records: Vec<OmapRecord> = match btree.root.records {
-        AnyRecords::Leaf(x) => x,
+    let records = match &btree.root.records {
+        AnyRecords::Leaf(ref x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
     };
     assert_eq!(records.len(), 6);
@@ -372,8 +372,8 @@ mod object_map {
     #[test]
     fn can_load_root_nonleaf_object_map_btree() {
         let btree = load_root_object_map();
-        let records = match btree.root.records {
-            AnyRecords::NonLeaf(x, _) => x,
+        let records = match &btree.root.records {
+            AnyRecords::NonLeaf(ref x, _) => x,
             _ => { panic!("Wrong b-tree record type!"); },
         };
         assert_eq!(records.len(), 85);
@@ -602,8 +602,8 @@ fn test_load_volume_superblock() {
     let (mut apfs, superblock, _, btree) = load_test_apfs_object_map_btree(TEST_APFS_FILE);
     assert_ne!(superblock.body.fs_oid[0], Oid(0));
     let mut found = -1;
-    let records: Vec<OmapRecord> = match btree.root.records {
-        AnyRecords::Leaf(x) => x,
+    let records = match &btree.root.records {
+        AnyRecords::Leaf(ref x) => x,
         _ => { panic!("Wrong b-tree record type!"); },
     };
     for idx in 0..records.len() {
@@ -820,7 +820,7 @@ mod dummy_node {
             block_size: 4096,
         },
         Btree {
-            root: BtreeNode {
+            root: Rc::new(BtreeNode {
                 node: BtreeNodeObject {
                     header: ObjPhys {
                         cksum: 0,
@@ -887,7 +887,7 @@ mod dummy_node {
                     },
                 ]),
                 _v: PhantomData,
-            },
+            }),
             info: BtreeInfo {
                 fixed: BtreeInfoFixed {
                     flags: BtFlags::SEQUENTIAL_INSERT | BtFlags::PHYSICAL,

@@ -7,6 +7,7 @@ use std::io::Cursor;
 use std::marker::PhantomData;
 use std::ops::RangeBounds;
 use std::fmt::Debug;
+use std::rc::Rc;
 
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
@@ -490,7 +491,7 @@ pub enum AnyRecords<V: LeafValue> {
 #[derive(Debug)]
 pub struct Btree<V: LeafValue> {
     info: BtreeInfo,
-    pub root: BtreeNode<V>,
+    pub root: Rc<BtreeNode<V>>,
     _v: PhantomData<V>,
 }
 
@@ -623,7 +624,7 @@ impl<V> Btree<V> where
             _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Non-root node at top of tree")); },
         };
         let root = Self::decode_btree_node(body, &info)?;
-        Ok(Btree { info, root, _v: PhantomData })
+        Ok(Btree { info, root: Rc::new(root), _v: PhantomData })
     }
 }
 
