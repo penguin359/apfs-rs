@@ -555,7 +555,6 @@ mod object_map {
     }
 
     #[test]
-    #[ignore = "not implemented yet, will require some work"]
     fn can_get_exact_matching_record_from_btree() {
         let (mut apfs, btree) = load_object_map_from_dummy_source();
         check_omap_leaf_record_lookup_btree(&btree, &mut apfs, 0x404, 9829294, Oid(0x404), Xid(9829294), 4096, Paddr(1284313));
@@ -564,7 +563,6 @@ mod object_map {
     }
 
     #[test]
-    #[ignore = "not implemented yet, will require some work"]
     fn no_record_returned_on_bad_exact_match_from_btree() {
         let (mut apfs, btree) = load_object_map_from_dummy_source();
         check_omap_record_lookup_missing_btree(&btree, &mut apfs, 0x403, 9829294);
@@ -574,7 +572,6 @@ mod object_map {
     }
 
     #[test]
-    #[ignore = "not implemented yet, will require some work"]
     fn can_get_inexact_matching_record_from_btree() {
         let (mut apfs, btree) = load_object_map_from_dummy_source();
         check_omap_leaf_record_lookup_btree(&btree, &mut apfs, 0x404, 9829295, Oid(0x404), Xid(9829294), 4096, Paddr(1284313));
@@ -587,7 +584,6 @@ mod object_map {
     }
 
     #[test]
-    #[ignore = "not implemented yet, will require some work"]
     fn no_record_returned_on_bad_inexact_match_from_btree() {
         let (mut apfs, btree) = load_object_map_from_dummy_source();
         check_omap_record_lookup_missing_btree(&btree, &mut apfs, 0x404, 0);
