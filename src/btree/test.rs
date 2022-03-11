@@ -2,6 +2,40 @@ use std::fs::File;
 
 use super::*;
 
+struct DummySource {
+    position: u64,
+    block_size: u64,
+    blocks: HashMap<u64, Vec<u8>>,
+}
+
+impl Read for DummySource {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.blocks.get(&(self.position/self.block_size)) {
+            Some(data) => {
+                buf.copy_from_slice(data);
+                self.position += buf.len() as u64;
+                Ok(buf.len())
+            },
+            None => {
+                buf.fill(0);
+                self.position += buf.len() as u64;
+                Ok(buf.len())
+            },
+        }
+    }
+}
+
+impl Seek for DummySource {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.position = match pos {
+            io::SeekFrom::Start(offset) => offset,
+            io::SeekFrom::End(offset) => 0,
+            io::SeekFrom::Current(offset) => offset as u64 + self.position,
+        };
+        Ok(self.position)
+    }
+}
+
 mod omap_key {
     use super::*;
 
@@ -486,6 +520,40 @@ mod object_map {
         check_omap_record_lookup_missing(&node, 0x408, 0);
         check_omap_record_lookup_missing(&node, 0x408, 53);
     }
+
+    fn load_object_map_from_dummy_source() -> Btree<OmapVal> {
+        const BLOCK_SIZE: usize = 4096;
+        const ROOT_BLOCK: u64 = 1066964;
+        const NONLEAF_BLOCK: u64 = 1079985;
+        const LEAF_BLOCK: u64 = 1080572;
+
+        let mut blob_source = File::open(test_dir().join(OBJECT_MAP_ROOT_FILE)).expect("Unable to load blob");
+        let mut root_blob = vec![0u8; BLOCK_SIZE];
+        blob_source.read_exact(&mut root_blob).unwrap();
+        let mut blob_source = File::open(test_dir().join(OBJECT_MAP_NONLEAF_FILE)).expect("Unable to load blob");
+        let mut nonleaf_blob = vec![0u8; BLOCK_SIZE];
+        blob_source.read_exact(&mut nonleaf_blob).unwrap();
+        let mut blob_source = File::open(test_dir().join(OBJECT_MAP_LEAF_FILE)).expect("Unable to load blob");
+        let mut leaf_blob = vec![0u8; BLOCK_SIZE];
+        blob_source.read_exact(&mut leaf_blob).unwrap();
+        let mut source = DummySource {
+            position: 0,
+            block_size: BLOCK_SIZE as u64,
+            blocks: HashMap::new(),
+        };
+        source.blocks.insert(ROOT_BLOCK, root_blob);
+        source.blocks.insert(NONLEAF_BLOCK, nonleaf_blob);
+        source.blocks.insert(LEAF_BLOCK, leaf_blob);
+        let mut apfs = APFS { source, block_size: BLOCK_SIZE };
+        let btree_result = Btree::<OmapVal>::load_btree(&mut apfs, Oid(ROOT_BLOCK), StorageType::Physical);
+        btree_result.expect("Bad b-tree load")
+    }
+
+    #[test]
+    fn can_load_object_map_from_dummy_source() {
+        let btree = load_object_map_from_dummy_source();
+    }
+
 }
 
 #[test]
