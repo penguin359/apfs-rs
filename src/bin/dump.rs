@@ -1,12 +1,12 @@
-use std::{fs::File, rc::Rc};
+use std::{fs::File, cmp::min};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, LeafRecord, InoExtType, InodeXdata};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey};
 
 use std::{env, collections::HashMap};
 
-fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records: AnyRecords<OmapVal>) {
-    let records = match records {
-        AnyRecords::Leaf(x) => x,
+fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records: &AnyRecords<OmapVal>) {
+    match records {
+        AnyRecords::Leaf(_) => {},
         AnyRecords::NonLeaf(children, _) => {
             for child in children {
                 let node_result = btree.load_btree_node(apfs, child.value.oid, StorageType::Physical);
@@ -16,57 +16,43 @@ fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records
                 assert!(node_result.is_ok(), "Bad b-tree node load");
                 let node = node_result.unwrap();
                 println!("Volume Object Map sub B-Tree: {:#?}", node);
-                dump_omap_apfs_records(btree, apfs, node.records);
+                dump_omap_apfs_records(btree, apfs, &node.records);
             }
-            vec![]
         },
     };
-    for record in records {
-        if record.value.flags.contains(OvFlags::ENCRYPTED) {
-            println!("Encrypted volume found, skipping...");
-            continue;
-        }
-        // let object = apfs.load_object_addr(record.value.paddr).unwrap();
-        let root_tree_result = apfs.load_btree::<ApfsValue>(Oid(record.value.paddr.0 as u64), StorageType::Physical);
-        if root_tree_result.is_err() {
-            println!("Error: {:?}", root_tree_result.as_ref().err());
-        }
-        assert!(root_tree_result.is_ok(), "Bad b-tree load");
-        let mut root_tree = root_tree_result.unwrap();
-        println!("Volume Root B-Tree: {:#?}", root_tree);
-        let records = std::mem::replace(&mut Rc::get_mut(&mut root_tree.root).unwrap().records, AnyRecords::Leaf(vec![]));
-        dump_apfs_records(&root_tree, apfs, records);
-    }
 }
 
-fn dump_apfs_records(_btree: &Btree<ApfsValue>, apfs: &mut APFS<File>, records: AnyRecords<ApfsValue>) {
-    let file_records: Vec<LeafRecord<ApfsValue>> = match records {
-        AnyRecords::Leaf(x) => x,
+fn dump_apfs_records(btree: &Btree<ApfsValue>, apfs: &mut APFS<File>, omap_btree: &Btree<OmapVal>, records: &AnyRecords<ApfsValue>) {
+    let empty = vec![];
+    let file_records = match records {
+        AnyRecords::Leaf(ref x) => x,
         AnyRecords::NonLeaf(children, _) => {
-            for _child in children {
-                // Need to support virtual object lookup
-                //let node_result = btree.load_btree_node(apfs, child.value.oid, StorageType::Physical);
-                //if node_result.is_err() {
-                //    println!("Error: {:?}", node_result.as_ref().err());
-                //}
-                //assert!(node_result.is_ok(), "Bad b-tree node load");
-                //let node = node_result.unwrap();
-                //dump_apfs_records(btree, apfs, node.records);
+            for child in children {
+                let root_object = omap_btree.get_record(apfs, &OmapKey::new(child.value.oid.0, u64::MAX))
+                    .expect("I/O error")
+                    .expect("Failed to find address for Volume root B-tree");
+                let node_result = btree.load_btree_node(apfs, Oid(root_object.value.paddr.0 as u64), StorageType::Physical);
+                let node = node_result.expect("Bad b-tree node load");
+                println!("Volume Root sub B-Tree: {:#?}", &node);
+                dump_apfs_records(btree, apfs, omap_btree, &node.records);
             }
-            vec![]
+            &empty
         },
     };
     let mut sizes = HashMap::<u64, u64>::new();
     for file_record in file_records {
-        if let ApfsValue::Inode(y) = file_record.value {
+        if let ApfsValue::Inode(ref y) = file_record.value {
             if let Some(&InodeXdata::Dstream(ref z)) = y.xdata.get(&InoExtType::Dstream) {
                 sizes.insert(file_record.key.key.obj_id_and_type.id(), z.size);
             }
-        } else if let ApfsValue::FileExtent(y) = file_record.value {
-            let length = sizes[&file_record.key.key.obj_id_and_type.id()] as usize;
-            println!("Reading block: {} ({} bytes)", y.phys_block_num, length);
-            if let Ok(block) = apfs.load_block(Paddr(y.phys_block_num as i64)) {
-                println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
+        } else if let ApfsValue::FileExtent(ref y) = file_record.value {
+            if let Some(&length) = sizes.get(&file_record.key.key.obj_id_and_type.id()) {
+                println!("Reading block: {} ({} bytes)", y.phys_block_num, length);
+                if let Ok(block) = apfs.load_block(Paddr(y.phys_block_num as i64)) {
+                    println!("Body: '{}'", String::from_utf8((&block[0..min(length as usize, block.len())]).to_owned()).unwrap_or_else(|_| String::from("(binary)")));
+                }
+            } else {
+                println!("Missing inode for file!");
             }
         }
     }
@@ -82,14 +68,14 @@ fn main() {
     println!("Container Superblock: {:#?}", superblock);
     assert!(superblock.body.xp_desc_blocks & (1 << 31) == 0);
     assert!(superblock.body.xp_data_blocks & (1 << 31) == 0);
-    //for idx in 0..superblock.body.xp_desc_blocks {
-    //    let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64)).unwrap();
-    //    println!("Checkpoint descriptor object: {:#?}", object);
-    //}
-    //for idx in 0..superblock.body.xp_data_blocks {
-    //    let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
-    //    println!("Checkpoint data object: {:#?}", object);
-    //}
+    for idx in 0..superblock.body.xp_desc_blocks {
+       let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64)).unwrap();
+       println!("Checkpoint descriptor object: {:#?}", object);
+    }
+    for idx in 0..superblock.body.xp_data_blocks {
+       let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
+       println!("Checkpoint data object: {:#?}", object);
+    }
     if superblock.body.keylocker.start_paddr.0 != 0 &&
        superblock.body.keylocker.block_count != 0 {
         println!("Found keylocker");
@@ -123,15 +109,21 @@ fn main() {
             APFSObject::ObjectMap(x) => x,
             _ => { panic!("Wrong object type!"); },
         };
-        let btree_result = apfs.load_btree::<OmapVal>(omap.body.tree_oid, StorageType::Physical);
-        if btree_result.is_err() {
-            println!("Error: {:?}", btree_result.as_ref().err());
+        let btree = apfs.load_btree::<OmapVal>(omap.body.tree_oid, StorageType::Physical)
+            .expect("Bad b-tree load");
+        println!("Volume Object Map B-Tree: {:#?}", &btree);
+        dump_omap_apfs_records(&btree, &mut apfs, &btree.root.records);
+        let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.root_tree_oid.0, u64::MAX))
+            .expect("I/O error")
+            .expect("Failed to find address for Volume root B-tree");
+        if root_object.value.flags.contains(OvFlags::ENCRYPTED) {
+            println!("Encrypted volume found, skipping...");
+            continue;
         }
-        assert!(btree_result.is_ok(), "Bad b-tree load");
-        let mut btree = btree_result.unwrap();
-        println!("Volume Object Map B-Tree: {:#?}", btree);
-        let records = std::mem::replace(&mut Rc::get_mut(&mut btree.root).unwrap().records, AnyRecords::Leaf(vec![]));
-        dump_omap_apfs_records(&btree, &mut apfs, records);
+        let root_btree = apfs.load_btree::<ApfsValue>(Oid(root_object.value.paddr.0 as u64), StorageType::Physical)
+            .expect("Failed to load volume root B-tree");
+        println!("Volume Root B-Tree: {:#?}", &root_btree);
+        dump_apfs_records(&root_btree, &mut apfs, &btree, &root_btree.root.records);
 
         // let btree_result = apfs.load_btree(volume.body.root_tree_oid, StorageType::Physical);
     }
