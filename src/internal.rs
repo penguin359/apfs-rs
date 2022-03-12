@@ -632,8 +632,12 @@ impl OmapSnapshot {
 
 const OMAP_MAX_SNAP_COUNT: u32 = u32::MAX;
 
-const OMAP_REAP_PHASE_MAP_TREE: usize = 1;
-const OMAP_REAP_PHASE_SNAPSHOT_TREE: usize = 2;
+#[repr(u32)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+enum OmapReapPhase {
+    MapTree = 1,
+    SnapshotTree = 2,
+}
 
 
 // Volumes
@@ -2205,40 +2209,40 @@ enum ApfsReapPhase {
 
 #[derive(Debug)]
 struct OmapReapState {
-    omr_phase: u32,
-    omr_ok: OmapKey,
+    phase: OmapReapPhase,
+    ok: OmapKey,
 }
 
 impl OmapReapState {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            omr_phase: source.read_u32::<LittleEndian>()?,
-            omr_ok: OmapKey::import(source)?,
+            phase: OmapReapPhase::from_u32(source.read_u32::<LittleEndian>()?).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown Omap Reap Phase"))?,
+            ok: OmapKey::import(source)?,
         })
     }
 }
 
 #[derive(Debug)]
 struct OmapCleanupState {
-    omc_cleaning: u32,
-    omc_omsflags: u32,
-    omc_sxidprev: Xid,
-    omc_sxidstart: Xid,
-    omc_sxidend: Xid,
-    omc_sxidnext: Xid,
-    omc_curkey: OmapKey,
+    cleaning: u32,
+    omsflags: u32,
+    sxidprev: Xid,
+    sxidstart: Xid,
+    sxidend: Xid,
+    sxidnext: Xid,
+    curkey: OmapKey,
 }
 
 impl OmapCleanupState {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            omc_cleaning: source.read_u32::<LittleEndian>()?,
-            omc_omsflags: source.read_u32::<LittleEndian>()?,
-            omc_sxidprev: Xid::import(source)?,
-            omc_sxidstart: Xid::import(source)?,
-            omc_sxidend: Xid::import(source)?,
-            omc_sxidnext: Xid::import(source)?,
-            omc_curkey: OmapKey::import(source)?,
+            cleaning: source.read_u32::<LittleEndian>()?,
+            omsflags: source.read_u32::<LittleEndian>()?,
+            sxidprev: Xid::import(source)?,
+            sxidstart: Xid::import(source)?,
+            sxidend: Xid::import(source)?,
+            sxidnext: Xid::import(source)?,
+            curkey: OmapKey::import(source)?,
         })
     }
 }
