@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -172,6 +172,13 @@ impl Key for ApfsKey {
                 return Ok(ApfsKey {
                     key: key,
                     subkey: ApfsSubKey::DrecHashed(subkey),
+                });
+            },
+            JObjTypes::DirStats => {
+                println!("DirStats key: {:?}", JDirStatsKey::import(key_cursor)?);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
                 });
             },
             JObjTypes::Xattr => {
@@ -334,13 +341,19 @@ pub struct DrecValue {
 
 #[derive(Debug)]
 pub enum ApfsValue {
+    //SnapMetadata,
+    //Extent,
     Inode(InodeValue),
-    Drec(DrecValue),
     Xattr(JXattrVal),
-    FileExtent(JFileExtentVal),
-    DstreamId(JDstreamIdVal),
     SiblingLink(JSiblingVal),
+    DstreamId(JDstreamIdVal),
+    //CryptoState,
+    FileExtent(JFileExtentVal),
+    DirRec(DrecValue),
+    DirStats(JDirStatsVal),
+    //SnapName,
     SiblingMap(JSiblingMapVal),
+    //FileInfo,
 }
 
 impl Value for ApfsValue {}
@@ -451,10 +464,15 @@ impl LeafValue for ApfsValue {
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(ApfsValue::Drec(DrecValue {
+                return Ok(ApfsValue::DirRec(DrecValue {
                     value,
                     xdata: xdata_map,
                 }));
+            },
+            JObjTypes::DirStats => {
+                let value = JDirStatsVal::import(value_cursor).unwrap();
+                println!("DirStats: {:?}", &value);
+                return Ok(ApfsValue::DirStats(value));
             },
             JObjTypes::Xattr => {
                 let value = JXattrVal::import(value_cursor).unwrap();

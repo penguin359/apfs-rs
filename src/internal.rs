@@ -1718,7 +1718,7 @@ impl JDrecVal {
 
 
 #[derive(Debug)]
-struct JDirStatsKey {
+pub struct JDirStatsKey {
     //hdr: JKey,
 }
 
@@ -1730,11 +1730,22 @@ impl JDirStatsKey {
 }
 
 #[derive(Debug)]
-struct JDirStatsVal {
+pub struct JDirStatsVal {
     num_children: u64,
     total_size: u64,
     chained_key: u64,
     gen_count: u64,
+}
+
+impl JDirStatsVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            num_children: source.read_u64::<LittleEndian>()?,
+            total_size: source.read_u64::<LittleEndian>()?,
+            chained_key: source.read_u64::<LittleEndian>()?,
+            gen_count: source.read_u64::<LittleEndian>()?,
+        })
+    }
 }
 
 #[derive(Debug)]
