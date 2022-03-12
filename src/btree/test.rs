@@ -1008,9 +1008,9 @@ mod dummy_node {
 mod spaceman_free_queue {
     use super::*;
 
-    fn load_test_apfs_sfq_btree(file: &str) -> (APFS<File>, NxSuperblockObject, Btree<SpacemanFreeQueueVal>) {
+    fn load_test_apfs_sfq_btree(file: &str) -> (APFS<File>, NxSuperblockObject, Btree<SpacemanFreeQueueValue>) {
         let (mut apfs, superblock) = load_test_apfs_superblock(file);
-        let btree = apfs.load_btree::<SpacemanFreeQueueVal>(Oid(superblock.body.xp_data_base.0 as u64 + 12), StorageType::Physical)
+        let btree = apfs.load_btree::<SpacemanFreeQueueValue>(Oid(superblock.body.xp_data_base.0 as u64 + 12), StorageType::Physical)
             .expect("Bad b-tree load");
         (apfs, superblock, btree)
     }
@@ -1025,15 +1025,48 @@ mod spaceman_free_queue {
         assert_eq!(records.len(), 4);
         assert_eq!(records[0].key.xid, Xid(2));
         assert_eq!(records[0].key.paddr, Paddr(83));
-        assert_eq!(records[0].value.0, 2);
+        assert_eq!(records[0].value.as_ref().unwrap().0, 2);
         assert_eq!(records[1].key.xid, Xid(3));
         assert_eq!(records[1].key.paddr, Paddr(85));
-        assert_eq!(records[1].value.0, 3);
+        assert_eq!(records[1].value.as_ref().unwrap().0, 3);
         assert_eq!(records[2].key.xid, Xid(3));
         assert_eq!(records[2].key.paddr, Paddr(89));
-        assert_eq!(records[2].value.0, 4);
+        assert_eq!(records[2].value.as_ref().unwrap().0, 4);
         assert_eq!(records[3].key.xid, Xid(4));
         assert_eq!(records[3].key.paddr, Paddr(96));
-        assert_eq!(records[3].value.0, 3);
+        assert_eq!(records[3].value.as_ref().unwrap().0, 3);
+    }
+}
+
+mod spaceman_free_queue_16k {
+    use super::*;
+
+    fn load_test_apfs_sfq_btree(file: &str) -> (APFS<File>, NxSuperblockObject, Btree<SpacemanFreeQueueValue>) {
+        let (mut apfs, superblock) = load_test_apfs_superblock(file);
+        let btree = apfs.load_btree::<SpacemanFreeQueueValue>(Oid(superblock.body.xp_data_base.0 as u64 + 13), StorageType::Physical)
+            .expect("Bad b-tree load");
+        (apfs, superblock, btree)
+    }
+
+    #[test]
+    fn can_load_test_apfs_sfq_btree_with_ghosts() {
+        let (_, _, btree) = load_test_apfs_sfq_btree(TEST_16KB_APFS_FILE);
+        let records = match &btree.root.records {
+            AnyRecords::Leaf(ref x) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        // assert_eq!(records.len(), 4);
+        // assert_eq!(records[0].key.xid, Xid(2));
+        // assert_eq!(records[0].key.paddr, Paddr(83));
+        // assert_eq!(records[0].value.0, 2);
+        // assert_eq!(records[1].key.xid, Xid(3));
+        // assert_eq!(records[1].key.paddr, Paddr(85));
+        // assert_eq!(records[1].value.0, 3);
+        // assert_eq!(records[2].key.xid, Xid(3));
+        // assert_eq!(records[2].key.paddr, Paddr(89));
+        // assert_eq!(records[2].value.0, 4);
+        // assert_eq!(records[3].key.xid, Xid(4));
+        // assert_eq!(records[3].key.paddr, Paddr(96));
+        // assert_eq!(records[3].value.0, 3);
     }
 }

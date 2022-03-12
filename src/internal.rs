@@ -946,7 +946,7 @@ pub struct Nloc {
     pub len: u16,
 }
 
-const BTOFF_INVALID: u16 = 0xffff;
+pub const BTOFF_INVALID: u16 = 0xffff;
 
 impl Nloc {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {

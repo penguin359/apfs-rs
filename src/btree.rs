@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -35,6 +35,10 @@ pub trait LeafValue : Value {
     type Key: Key;
 
     fn import(source: &mut dyn Read, key: &Self::Key) -> io::Result<Self>;
+
+    fn ghost_value() -> Self {
+        unimplemented!("This B+ Tree value type doesn't support ghost entries");
+    }
 }
 
 trait Match {
@@ -251,13 +255,19 @@ impl Key for SpacemanFreeQueueKey {
     }
 }
 
-impl Value for SpacemanFreeQueueVal {}
+pub type SpacemanFreeQueueValue = Option<SpacemanFreeQueueVal>;
 
-impl LeafValue for SpacemanFreeQueueVal {
+impl Value for SpacemanFreeQueueValue {}
+
+impl LeafValue for SpacemanFreeQueueValue {
     type Key = SpacemanFreeQueueKey;
 
     fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
-        Ok(Self::import(source)?)
+        Ok(Some(SpacemanFreeQueueVal::import(source)?))
+    }
+
+    fn ghost_value() -> Self {
+        None
     }
 }
 
@@ -617,12 +627,21 @@ impl<V> Btree<V> where
             };
             items.push(kvloc);
             let key_data = &body.body.data[(body.body.table_space.off+body.body.table_space.len+kvloc.k.off) as usize..(body.body.table_space.off+body.body.table_space.len+kvloc.k.off + kvloc.k.len) as usize];
-            let val_data = &body.body.data[(body.body.data.len() as u16 - kvloc.v.off) as usize..(body.body.data.len() as u16 -  kvloc.v.off + kvloc.v.len) as usize];
+            let val_data = if !info.fixed.flags.contains(BtFlags::ALLOW_GHOSTS) ||
+                    kvloc.v.off != BTOFF_INVALID {
+                &body.body.data[(body.body.data.len() as u16 - kvloc.v.off) as usize..(body.body.data.len() as u16 -  kvloc.v.off + kvloc.v.len) as usize]
+            } else {
+                &[]
+            };
             let mut key_cursor = Cursor::new(key_data);
             let mut value_cursor = Cursor::new(val_data);
             let key = V::Key::import(&mut key_cursor)?;
             if body.body.flags.contains(BtnFlags::LEAF) {
-                let value = V::import(&mut value_cursor, &key)?;
+                let value = if val_data.len() == 0 {
+                    V::ghost_value()
+                } else {
+                    V::import(&mut value_cursor, &key)?
+                };
                 let record = LeafRecord {
                     key,
                     value,
