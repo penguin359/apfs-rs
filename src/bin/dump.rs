@@ -76,8 +76,12 @@ fn main() {
         let object = apfs.load_object_addr(Paddr(superblock.body.xp_data_base.0+idx as i64));//.unwrap();
         println!("Checkpoint data object: {:#?}", &object);
         if let Ok(APFSObject::Spaceman(body)) = object {
-            let subobject = apfs.load_object_addr(body.body.ip_base).unwrap();
-            println!("Internal pool data object: {:#?}", &subobject);
+            let subobject_result = apfs.load_object_addr(body.body.ip_base);
+            if let Ok(subobject) = subobject_result {
+                println!("Internal pool data object: {:#?}", &subobject);
+            } else {
+                println!("Error reading pool data: {:#?}", subobject_result);
+            }
             // for subidx in 0..body.body.ip_block_count {
             //     let subobject = apfs.load_object_addr(Paddr(body.body.ip_base.0 + subidx as i64)).unwrap();
             //     println!("Internal pool data object: {:#?}", &subobject);
