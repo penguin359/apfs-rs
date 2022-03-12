@@ -93,6 +93,19 @@ fn main() {
                 let btree = apfs.load_btree::<SpacemanFreeQueueValue>(Oid(superblock.body.xp_data_base.0 as u64 + idx as u64), StorageType::Physical)
                     .expect("Bad b-tree load");
                 println!("Space Manager Free Queue B-Tree: {:#?}", btree);
+                match &btree.root.records {
+                    AnyRecords::Leaf(ref x) => {
+                        for record in x {
+                            let subobject_result = apfs.load_object_addr(record.key.paddr);
+                            if let Ok(subobject) = subobject_result {
+                                println!("SFQ Internal pool data object: {:#?}", &subobject);
+                            } else {
+                                println!("SFQ Error reading pool data: {:#?}", subobject_result);
+                            }
+                        }
+                    },
+                    AnyRecords::NonLeaf(_, _) => {},
+                }
             }
         }
     }
