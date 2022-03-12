@@ -208,18 +208,19 @@ impl std::fmt::Debug for ObjectTypeAndFlags {
 
 // EFI Jumpstart
 
-struct NxEfiJumpstart {
+#[derive(Debug)]
+pub struct NxEfiJumpstart {
     //nej_o: ObjPhys,
-    magic: u32,
-    version: u32,
-    efi_file_len: u32,
+    pub magic: u32,
+    pub version: u32,
+    pub efi_file_len: u32,
     num_extents: u32,
     reserved: [u64; 16],
-    rec_extents: Vec<Prange>,
+    pub rec_extents: Vec<Prange>,
 }
 
 impl NxEfiJumpstart {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = Self {
             magic: source.read_u32::<LittleEndian>()?,
             version: source.read_u32::<LittleEndian>()?,
@@ -238,8 +239,8 @@ impl NxEfiJumpstart {
     }
 }
 
-const NX_EFI_JUMPSTART_MAGIC: u32 = u32_code!(b"RDSJ");
-const NX_EFI_JUMPSTART_VERSION: usize = 1;
+pub const NX_EFI_JUMPSTART_MAGIC: u32 = u32_code!(b"RDSJ");
+pub const NX_EFI_JUMPSTART_VERSION: u32 = 1;
 
 //const APFS_GPT_PARTITION_UUID: Uuid = Uuid::parse_str("7C3457EF-0000-11AA-AA11-00306543ECAC").unwrap();
 const APFS_GPT_PARTITION_UUID: &str = "7C3457EF-0000-11AA-AA11-00306543ECAC";
@@ -333,7 +334,7 @@ pub struct NxSuperblock {
         blocked_out_prange: Prange,
         evict_mapping_tree_oid: Oid,
         flags: SuperblockFlags,
-        efi_jumpstart: Paddr,
+        pub efi_jumpstart: Paddr,
         fusion_uuid: Uuid,
         pub keylocker: Prange,
         ephemeral_info: [u64; NX_EPH_INFO_COUNT],
@@ -434,7 +435,7 @@ impl NxSuperblock {
     }
 }
 
-const NX_MINIMUM_BLOCK_SIZE: usize = 4096;
+pub const NX_MINIMUM_BLOCK_SIZE: usize = 4096;
 pub const NX_DEFAULT_BLOCK_SIZE: usize = 4096;
 const NX_MAXIMUM_BLOCK_SIZE: usize = 65536;
 
@@ -905,7 +906,7 @@ impl ApfsSuperblock {
 
             volname: Self::import_volname(source)?,
             next_doc_id: source.read_u32::<LittleEndian>()?,
-            
+
             role: VolumeRoles::from_bits(source.read_u16::<LittleEndian>()?)
                 .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown flags"))?,
             reserved: source.read_u16::<LittleEndian>()?,

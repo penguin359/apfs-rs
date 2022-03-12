@@ -1,6 +1,6 @@
 use std::{fs::File, cmp::min};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION};
 
 use std::{env, collections::HashMap};
 
@@ -108,6 +108,26 @@ fn main() {
                 }
             }
         }
+    }
+    if superblock.body.efi_jumpstart != Paddr(0) {
+        println!("Dumping Bootloader");
+        let object = apfs.load_object_addr(superblock.body.efi_jumpstart).unwrap();
+        let jumpstart = match object {
+            APFSObject::EfiJumpstart(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        println!("EFI Jumpstart: {:#?}", &jumpstart);
+        assert_eq!(jumpstart.body.magic, NX_EFI_JUMPSTART_MAGIC);
+        assert_eq!(jumpstart.body.version, NX_EFI_JUMPSTART_VERSION);
+        let mut loader = vec![];
+        for range in jumpstart.body.rec_extents {
+            for idx in 0..range.block_count {
+                loader.push(apfs.load_block(Paddr(range.start_paddr.0 + idx as i64)).expect("Failed to load jumpstart block"));
+            }
+        }
+        let mut loader_bytes = loader.into_iter().flatten().collect::<Vec<u8>>();
+        loader_bytes.shrink_to(jumpstart.body.efi_file_len as usize);
+        println!("Bootloader: {:?}", loader_bytes);
     }
     if superblock.body.keylocker.start_paddr.0 != 0 &&
        superblock.body.keylocker.block_count != 0 {

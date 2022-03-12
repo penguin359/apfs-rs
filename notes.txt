@@ -23,3 +23,17 @@ Preserve safe, unknown Flags
 Support unknown read-only flags?
 
 Check for panics on slices. Don't let it happen, but return error instead.
+
+Apple docs say reserved oid count is for all object, but it appears that
+physical objects are exempt since that would waste the first 4 MB of disk
+space. In particular, an APFS Volume superblock and Object map were found in
+that range.
+
+extentref copy/paste mistake in docs
+
+
+nx_fs_oid
+An array of virtual object identifiers for volumes.
+oid_t nx_fs_oid[NX_MAX_FILE_SYSTEMS];
+The objectsʼ types are all OBJECT_TYPE_BTREE and their subtypes are all
+OBJECT_TYPE_FSTREE.

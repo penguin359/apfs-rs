@@ -209,6 +209,12 @@ pub struct NxReaperObject {
 }
 
 #[derive(Debug)]
+pub struct NxEfiJumpstartObject {
+    header: ObjPhys,
+    pub body: NxEfiJumpstart,
+}
+
+#[derive(Debug)]
 pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
@@ -219,6 +225,7 @@ pub enum APFSObject {
     Spaceman(SpacemanObject),
     SpacemanCib(ChunkInfoBlockObject),
     NxReaper(NxReaperObject),
+    EfiJumpstart(NxEfiJumpstartObject),
 }
 
 pub struct APFS<S: Read + Seek> {
@@ -230,8 +237,8 @@ pub struct APFS<S: Read + Seek> {
 impl APFS<File> {
     pub fn open<P: AsRef<Path>>(filename: P) -> io::Result<Self> {
         let mut source = File::open(filename)?;
-        //let block0 = APFS { source, block_size: NX_DEFAULT_BLOCK_SIZE }.load_block(Paddr(0)).unwrap();
-        let mut block0 = [0; NX_DEFAULT_BLOCK_SIZE];
+        //let block0 = APFS { source, block_size: NX_MINIMUM_BLOCK_SIZE }.load_block(Paddr(0)).unwrap();
+        let mut block0 = [0; NX_MINIMUM_BLOCK_SIZE];
         source.read_exact(&mut block0[..])?;
         let mut cursor = Cursor::new(&block0[..]);
         let header = ObjPhys::import(&mut cursor).unwrap();
@@ -305,6 +312,11 @@ impl<S: Read + Seek> APFS<S> {
                 APFSObject::NxReaper(NxReaperObject {
                 header,
                 body: NxReaperPhys::import(&mut cursor)?,
+            }),
+            ObjectType::EfiJumpstart =>
+                APFSObject::EfiJumpstart(NxEfiJumpstartObject {
+                header,
+                body: NxEfiJumpstart::import(&mut cursor)?,
             }),
             _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", header.r#type.r#type()))); },
         };
