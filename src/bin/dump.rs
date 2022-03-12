@@ -1,6 +1,6 @@
 use std::{fs::File, cmp::min};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueVal};
 
 use std::{env, collections::HashMap};
 
@@ -84,7 +84,13 @@ fn main() {
             // }
             // let subobject = apfs.load_object_addr(body.body.ip_bm_base).unwrap();
             // println!("Internal pool bitmap data object: {:#?}", &subobject);
-       }
+        } else if let Ok(APFSObject::Btree(body)) = object {
+            if body.header.subtype.r#type() == ObjectType::SpacemanFreeQueue {
+                let btree = apfs.load_btree::<SpacemanFreeQueueVal>(Oid(superblock.body.xp_data_base.0 as u64 + idx as u64), StorageType::Physical)
+                    .expect("Bad b-tree load");
+                println!("Space Manager Free Queue B-Tree: {:#?}", btree);
+            }
+        }
     }
     if superblock.body.keylocker.start_paddr.0 != 0 &&
        superblock.body.keylocker.block_count != 0 {

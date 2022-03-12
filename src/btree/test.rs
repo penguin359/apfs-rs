@@ -1004,3 +1004,36 @@ mod dummy_node {
         check_omap_record_lookup_missing_btree(&btree, &mut apfs, 135, 49);
     }
 }
+
+mod spaceman_free_queue {
+    use super::*;
+
+    fn load_test_apfs_sfq_btree(file: &str) -> (APFS<File>, NxSuperblockObject, Btree<SpacemanFreeQueueVal>) {
+        let (mut apfs, superblock) = load_test_apfs_superblock(file);
+        let btree = apfs.load_btree::<SpacemanFreeQueueVal>(Oid(superblock.body.xp_data_base.0 as u64 + 12), StorageType::Physical)
+            .expect("Bad b-tree load");
+        (apfs, superblock, btree)
+    }
+
+    #[test]
+    fn can_load_test_apfs_sfq_btree() {
+        let (_, _, btree) = load_test_apfs_sfq_btree(TEST_APFS_FILE);
+        let records = match &btree.root.records {
+            AnyRecords::Leaf(ref x) => x,
+            _ => { panic!("Wrong b-tree record type!"); },
+        };
+        assert_eq!(records.len(), 4);
+        assert_eq!(records[0].key.xid, Xid(2));
+        assert_eq!(records[0].key.paddr, Paddr(83));
+        assert_eq!(records[0].value.0, 2);
+        assert_eq!(records[1].key.xid, Xid(3));
+        assert_eq!(records[1].key.paddr, Paddr(85));
+        assert_eq!(records[1].value.0, 3);
+        assert_eq!(records[2].key.xid, Xid(3));
+        assert_eq!(records[2].key.paddr, Paddr(89));
+        assert_eq!(records[2].value.0, 4);
+        assert_eq!(records[3].key.xid, Xid(4));
+        assert_eq!(records[3].key.paddr, Paddr(96));
+        assert_eq!(records[3].value.0, 3);
+    }
+}

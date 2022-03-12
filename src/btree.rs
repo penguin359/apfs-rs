@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -215,6 +215,49 @@ impl Key for ApfsKey {
             },
         }
         return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized node type"));
+    }
+}
+
+/* Object map keys match on the object ID equality and
+   a transaction ID that is less than or equal */
+impl Ord for SpacemanFreeQueueKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let order = self.paddr.0.cmp(&other.paddr.0);
+        match order {
+            Ordering::Equal => self.xid.0.cmp(&other.xid.0),
+            _ => order,
+        }
+    }
+}
+
+impl PartialOrd for SpacemanFreeQueueKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SpacemanFreeQueueKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for SpacemanFreeQueueKey {
+}
+
+impl Key for SpacemanFreeQueueKey {
+    fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self::import(source)?)
+    }
+}
+
+impl Value for SpacemanFreeQueueVal {}
+
+impl LeafValue for SpacemanFreeQueueVal {
+    type Key = SpacemanFreeQueueKey;
+
+    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
+        Ok(Self::import(source)?)
     }
 }
 
@@ -542,7 +585,8 @@ impl<V> Btree<V> where
 
     fn decode_btree_node(body: BtreeNodeObject, info: &BtreeInfo) -> io::Result<BtreeNode<V>> {
         if body.header.subtype.r#type() != ObjectType::Omap &&
-           body.header.subtype.r#type() != ObjectType::Fstree {
+           body.header.subtype.r#type() != ObjectType::Fstree &&
+           body.header.subtype.r#type() != ObjectType::SpacemanFreeQueue {
             return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree type"));
         }
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
@@ -561,7 +605,8 @@ impl<V> Btree<V> where
                     v: Nloc {
                         off: kvoff.v,
                         len: if body.body.flags.contains(BtnFlags::LEAF) {
-                            info.fixed.key_size as u16
+                            // info.fixed.key_size as u16
+                            info.fixed.val_size as u16
                         } else {
                             8  // Length of OidValue
                         },
@@ -577,15 +622,12 @@ impl<V> Btree<V> where
             let mut value_cursor = Cursor::new(val_data);
             let key = V::Key::import(&mut key_cursor)?;
             if body.body.flags.contains(BtnFlags::LEAF) {
-                if body.header.subtype.r#type() == ObjectType::Omap ||
-                   body.header.subtype.r#type() == ObjectType::Fstree {
-                    let value = V::import(&mut value_cursor, &key)?;
-                    let record = LeafRecord {
-                        key,
-                        value,
-                    };
-                    records.push(record);
-                }
+                let value = V::import(&mut value_cursor, &key)?;
+                let record = LeafRecord {
+                    key,
+                    value,
+                };
+                records.push(record);
             } else {
                 nrecords.push(NonLeafRecord {
                     key,

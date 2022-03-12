@@ -1211,7 +1211,7 @@ impl CibAddrBlock {
 }
 
 #[derive(Debug)]
-struct SpacemanFreeQueueVal(u64);
+pub struct SpacemanFreeQueueVal(pub u64);
 
 impl SpacemanFreeQueueVal {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
@@ -1220,9 +1220,9 @@ impl SpacemanFreeQueueVal {
 }
 
 #[derive(Debug)]
-struct SpacemanFreeQueueKey {
-    xid: Xid,
-    paddr: Paddr,
+pub struct SpacemanFreeQueueKey {
+    pub xid: Xid,
+    pub paddr: Paddr,
 }
 
 impl SpacemanFreeQueueKey {
