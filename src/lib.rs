@@ -10,9 +10,43 @@ extern crate num_derive;
 
 #[cfg(test)]
 mod tests {
+    use std::{path::PathBuf, collections::HashMap};
+
     use super::*;
 
-    use std::path::PathBuf;
+    pub struct DummySource {
+        pub position: u64,
+        pub block_size: u64,
+        pub blocks: HashMap<u64, Vec<u8>>,
+    }
+
+    impl Read for DummySource {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            match self.blocks.get(&(self.position/self.block_size)) {
+                Some(data) => {
+                    buf.copy_from_slice(data);
+                    self.position += buf.len() as u64;
+                    Ok(buf.len())
+                },
+                None => {
+                    buf.fill(0);
+                    self.position += buf.len() as u64;
+                    Ok(buf.len())
+                },
+            }
+        }
+    }
+
+    impl Seek for DummySource {
+        fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+            self.position = match pos {
+                io::SeekFrom::Start(offset) => offset,
+                io::SeekFrom::End(offset) => 0,
+                io::SeekFrom::Current(offset) => offset as u64 + self.position,
+            };
+            Ok(self.position)
+        }
+    }
 
     pub fn test_dir() -> PathBuf {
         let root = ::std::env::var_os("CARGO_MANIFEST_DIR").map(|x| PathBuf::from(x))
@@ -135,6 +169,90 @@ mod tests {
         //assert_eq!(header.o_type.r#type(), ObjectType::NxSuperblock, "type");
         //assert_eq!(header.o_type.storage(), OBJ_EPHEMERAL, "type");
     }
+
+    fn load_test_apfs_checkpoints() -> APFS<DummySource> {
+        const BLOCK_SIZE: usize = 4096;
+
+        let mut source = File::open(test_dir().join(TEST_APFS_FILE)).expect("Unable to load blob");
+        let mut block = vec![0u8; BLOCK_SIZE];
+        let mut dummy_source = DummySource {
+            position: 0,
+            block_size: BLOCK_SIZE as u64,
+            blocks: HashMap::new(),
+        };
+        for idx in 0..60 {
+            source.read_exact(&mut block).unwrap();
+            dummy_source.blocks.insert(idx, block.clone());
+        }
+        APFS { source: dummy_source, block_size: BLOCK_SIZE }
+    }
+
+    #[test]
+    fn can_load_test_apfs_checkpoints() {
+        let apfs = load_test_apfs_checkpoints();
+    }
+
+    #[test]
+    fn can_mount_test_apfs_checkpoints() {
+        let apfs = load_test_apfs_checkpoints();
+        let mount = APFSMount::mount(apfs).unwrap();
+        assert_eq!(mount.superblock.header.oid, Oid(1));
+        assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+        assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+        assert!(mount.superblock.header.r#type.flags().is_empty());
+        assert_eq!(mount.superblock.body.magic, NX_MAGIC);
+    }
+
+    #[test]
+    fn mounting_test_apfs_has_correct_superblock() {
+        let apfs = load_test_apfs_checkpoints();
+        let mount = APFSMount::mount(apfs).unwrap();
+        assert_eq!(mount.superblock.header.oid, Oid(1));
+        assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+        assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+        assert!(mount.superblock.header.r#type.flags().is_empty());
+        assert_eq!(mount.superblock.header.xid, Xid(4));
+        assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 35);
+        assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+    }
+
+    #[test]
+    fn mounting_test_apfs_has_correct_superblock_when_rotated() {
+        for rotations in 1..7 {
+            let mut apfs = load_test_apfs_checkpoints();
+
+            // Rotate the 8 blocks that make up the checkpoint descriptor
+            for _ in 0..rotations {
+                let tmp = apfs.source.blocks.remove(&1).unwrap();
+                for idx in 1..8 {
+                    let next = apfs.source.blocks.remove(&(idx+1)).unwrap();
+                    apfs.source.blocks.insert(idx, next);
+                }
+                apfs.source.blocks.insert(8, tmp);
+            }
+            let mount = APFSMount::mount(apfs).unwrap();
+            assert_eq!(mount.superblock.header.oid, Oid(1));
+            assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+            assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+            assert!(mount.superblock.header.r#type.flags().is_empty());
+            assert_eq!(mount.superblock.header.xid, Xid(4));
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 35);
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+        }
+    }
+
+    // #[test]
+    // fn mounting_test_apfs_when_latest_superblock_corrupted() {
+    //     let apfs = load_test_apfs_checkpoints();
+    //     let mount = APFSMount::mount(apfs).unwrap();
+    //     assert_eq!(mount.superblock.header.oid, Oid(1));
+    //     assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+    //     assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+    //     assert!(mount.superblock.header.r#type.flags().is_empty());
+    //     assert_eq!(mount.superblock.header.xid, Xid(4));
+    //     assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 35);
+    //     assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+    // }
 }
 
 use std::collections::BTreeMap;
@@ -229,7 +347,6 @@ pub enum APFSObject {
 }
 
 pub struct APFS<S: Read + Seek> {
-    //file: File,
     source: S,
     block_size: usize,
 }
@@ -237,13 +354,7 @@ pub struct APFS<S: Read + Seek> {
 impl APFS<File> {
     pub fn open<P: AsRef<Path>>(filename: P) -> io::Result<Self> {
         let mut source = File::open(filename)?;
-        //let block0 = APFS { source, block_size: NX_MINIMUM_BLOCK_SIZE }.load_block(Paddr(0)).unwrap();
-        let mut block0 = [0; NX_MINIMUM_BLOCK_SIZE];
-        source.read_exact(&mut block0[..])?;
-        let mut cursor = Cursor::new(&block0[..]);
-        let header = ObjPhys::import(&mut cursor).unwrap();
-        let superblock = NxSuperblock::import(&mut cursor).unwrap();
-        Ok(APFS { source, block_size: superblock.block_size as usize })
+        APFS::open_source(source)
     }
 
     pub fn load_btree<V: LeafValue>(&mut self, oid: Oid, r#type: StorageType) -> io::Result<btree::Btree<V>> {
@@ -252,6 +363,15 @@ impl APFS<File> {
 }
 
 impl<S: Read + Seek> APFS<S> {
+    pub fn open_source(mut source: S) -> io::Result<Self> {
+        let mut block0 = [0; NX_MINIMUM_BLOCK_SIZE];
+        source.read_exact(&mut block0[..])?;
+        let mut cursor = Cursor::new(&block0[..]);
+        let header = ObjPhys::import(&mut cursor).unwrap();
+        let superblock = NxSuperblock::import(&mut cursor).unwrap();
+        Ok(APFS { source, block_size: superblock.block_size as usize })
+    }
+
     pub fn load_block(&mut self, addr: Paddr) -> io::Result<Vec<u8>> {
         println!("Loading block {}", addr.0);
         let mut block = vec![0; self.block_size];
@@ -332,5 +452,30 @@ impl<S: Read + Seek> APFS<S> {
                 panic!("Unsupported");
             },
         })
+    }
+}
+
+struct APFSMount<S: Read + Seek> {
+    apfs: APFS<S>,
+    superblock: NxSuperblockObject,
+}
+
+impl<S: Read + Seek> APFSMount<S> {
+    fn mount(mut apfs: APFS<S>) -> io::Result<Self> {
+        let mut superblock = match apfs.load_object_addr(Paddr(0)).unwrap() {
+            APFSObject::Superblock(x) => x,
+            _ => { panic!("Wrong object type!"); },
+        };
+        let mut best_xid = 0;
+        for idx in 0..superblock.body.xp_desc_blocks {
+            let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64));
+            if let Ok(APFSObject::Superblock(body)) = object {
+                if body.header.xid.0 > best_xid {
+                    best_xid = body.header.xid.0;
+                    superblock = body;
+                }
+            }
+        }
+        Ok(APFSMount { apfs, superblock })
     }
 }

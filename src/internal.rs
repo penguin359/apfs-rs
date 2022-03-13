@@ -248,14 +248,14 @@ const APFS_GPT_PARTITION_UUID: &str = "7C3457EF-0000-11AA-AA11-00306543ECAC";
 
 // Container
 
-enum CounterId {
+pub enum CounterId {
       CntrObjCksumSet = 0,
       CntrObjCksumFail = 1,
 
       NumCounters = 32,
 }
 
-const NX_MAGIC: u32 = u32_code!(b"BSXN");
+pub const NX_MAGIC: u32 = u32_code!(b"BSXN");
 const NX_MAX_FILE_SYSTEMS: usize = 100;
 
 const NX_EPH_INFO_COUNT: usize = 4;
@@ -330,7 +330,7 @@ pub struct NxSuperblock {
 
         max_file_systems: u32,
         pub fs_oid: [Oid; NX_MAX_FILE_SYSTEMS],
-        counters: [u64; CounterId::NumCounters as usize],
+        pub counters: [u64; CounterId::NumCounters as usize],
         blocked_out_prange: Prange,
         evict_mapping_tree_oid: Oid,
         flags: SuperblockFlags,

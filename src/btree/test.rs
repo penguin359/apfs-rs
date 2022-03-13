@@ -2,40 +2,6 @@ use std::fs::File;
 
 use super::*;
 
-struct DummySource {
-    position: u64,
-    block_size: u64,
-    blocks: HashMap<u64, Vec<u8>>,
-}
-
-impl Read for DummySource {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.blocks.get(&(self.position/self.block_size)) {
-            Some(data) => {
-                buf.copy_from_slice(data);
-                self.position += buf.len() as u64;
-                Ok(buf.len())
-            },
-            None => {
-                buf.fill(0);
-                self.position += buf.len() as u64;
-                Ok(buf.len())
-            },
-        }
-    }
-}
-
-impl Seek for DummySource {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.position = match pos {
-            io::SeekFrom::Start(offset) => offset,
-            io::SeekFrom::End(offset) => 0,
-            io::SeekFrom::Current(offset) => offset as u64 + self.position,
-        };
-        Ok(self.position)
-    }
-}
-
 mod omap_key {
     use super::*;
 
@@ -341,6 +307,8 @@ fn test_load_object_map_btree_dummy() {
 }
 
 mod object_map {
+    use crate::tests::DummySource;
+
     use super::*;
 
     const OBJECT_MAP_ROOT_FILE: &str = "object-map-root-nonleaf.blob";
