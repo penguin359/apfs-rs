@@ -37,3 +37,7 @@ An array of virtual object identifiers for volumes.
 oid_t nx_fs_oid[NX_MAX_FILE_SYSTEMS];
 The objectsʼ types are all OBJECT_TYPE_BTREE and their subtypes are all
 OBJECT_TYPE_FSTREE.
+
+
+OBJECT_TYPE_BLOCKREFTREE vs OBJECT_TYPE_BLOCKREF
+

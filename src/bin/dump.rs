@@ -1,6 +1,6 @@
 use std::{fs::File, cmp::min};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic};
 
 use std::{env, collections::HashMap};
 
@@ -166,6 +166,9 @@ fn main() {
             .expect("Bad b-tree load");
         println!("Volume Object Map B-Tree: {:#?}", &btree);
         dump_omap_apfs_records(&btree, &mut apfs, &btree.root.records);
+        let extentref_btree = load_btree_generic(&mut apfs, volume.body.extentref_tree_oid, StorageType::Physical)
+            .expect("Bad b-tree load");
+        println!("Volume Extent Reference B-Tree: {:#?}", &extentref_btree);
         let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.root_tree_oid.0, u64::MAX))
             .expect("I/O error")
             .expect("Failed to find address for Volume root B-tree");

@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey, JPhysExtKey};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -21,6 +21,7 @@ use crate::internal::OmapVal;
 use crate::internal::OvFlags;
 use crate::internal::BtreeInfo;
 use crate::internal::JKey;
+use crate::internal::JPhysExtVal;
 
 use crate::{APFS, APFSObject, BtreeNodeObject, Paddr, StorageType};
 
@@ -221,16 +222,22 @@ impl Key for ApfsKey {
                     subkey: ApfsSubKey::None,
                 });
             },
+            JObjTypes::Extent => {
+                let subkey = JPhysExtKey::import(key_cursor)?;
+                println!("Extent key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
+                });
+            },
             _ => {
                 println!("Unsupported key type: {:?}!", key_type);
             },
         }
-        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized node type"));
+        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized APFS key type"));
     }
 }
 
-/* Object map keys match on the object ID equality and
-   a transaction ID that is less than or equal */
 impl Ord for SpacemanFreeQueueKey {
     fn cmp(&self, other: &Self) -> Ordering {
         let order = self.paddr.0.cmp(&other.paddr.0);
@@ -275,6 +282,47 @@ impl LeafValue for SpacemanFreeQueueValue {
 
     fn ghost_value() -> Self {
         None
+    }
+}
+
+//impl Ord for JPhysExtKey {
+//    fn cmp(&self, other: &Self) -> Ordering {
+//        let order = self.paddr.0.cmp(&other.paddr.0);
+//        match order {
+//            Ordering::Equal => self.xid.0.cmp(&other.xid.0),
+//            _ => order,
+//        }
+//    }
+//}
+//
+//impl PartialOrd for JPhysExtKey {
+//    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+//        Some(self.cmp(other))
+//    }
+//}
+//
+//impl PartialEq for JPhysExtKey {
+//    fn eq(&self, other: &Self) -> bool {
+//        self.cmp(other) == Ordering::Equal
+//    }
+//}
+//
+//impl Eq for JPhysExtKey {
+//}
+//
+//impl Key for JPhysExtKey {
+//    fn import(source: &mut dyn Read) -> io::Result<Self> {
+//        Ok(Self::import(source)?)
+//    }
+//}
+
+impl Value for JPhysExtVal {}
+
+impl LeafValue for JPhysExtVal {
+    type Key = ApfsKey;
+
+    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
+        Ok(JPhysExtVal::import(source)?)
     }
 }
 
@@ -342,7 +390,7 @@ pub struct DrecValue {
 #[derive(Debug)]
 pub enum ApfsValue {
     //SnapMetadata,
-    //Extent,
+    Extent(JPhysExtVal),
     Inode(InodeValue),
     Xattr(JXattrVal),
     SiblingLink(JSiblingVal),
@@ -505,11 +553,16 @@ impl LeafValue for ApfsValue {
                 println!("SiblingMap: {:?}", &value);
                 return Ok(ApfsValue::SiblingMap(value));
             },
+            JObjTypes::Extent => {
+                let value = JPhysExtVal::import(value_cursor)?;
+                println!("Extent: {:?}", &value);
+                return Ok(ApfsValue::Extent(value));
+            },
             _ => {
                 println!("Unsupported key type: {:?}!", key_type);
             },
         }
-        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized node type"));
+        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized APFS value type"));
     }
 }
 
@@ -616,7 +669,8 @@ impl<V> Btree<V> where
     fn decode_btree_node(body: BtreeNodeObject, info: &BtreeInfo) -> io::Result<BtreeNode<V>> {
         if body.header.subtype.r#type() != ObjectType::Omap &&
            body.header.subtype.r#type() != ObjectType::Fstree &&
-           body.header.subtype.r#type() != ObjectType::SpacemanFreeQueue {
+           body.header.subtype.r#type() != ObjectType::SpacemanFreeQueue &&
+           body.header.subtype.r#type() != ObjectType::Blockreftree {
             return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree type"));
         }
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
@@ -724,10 +778,12 @@ impl Btree<OmapVal> {
     }
 }
 
+#[derive(Debug)]
 pub enum BtreeTypes {
     Omap(Btree<OmapVal>),
     Apfs(Btree<ApfsValue>),
     SpacemanFreeQueue(Btree<SpacemanFreeQueueValue>),
+    ExtentRef(Btree<JPhysExtVal>),
 }
 
 pub fn load_btree_generic<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeTypes> {
@@ -747,6 +803,10 @@ pub fn load_btree_generic<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: 
         ObjectType::Omap => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
         ObjectType::Fstree => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
         ObjectType::SpacemanFreeQueue => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
-        _ => { unimplemented!("B-Tree type not supported"); },
+        ObjectType::Blockreftree => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
+        _ => { 
+            return Err(io::Error::new(io::ErrorKind::Unsupported,
+                 format!("B-Tree type not supported: {:?}", body.header.subtype.r#type())));
+        },
     })
 }

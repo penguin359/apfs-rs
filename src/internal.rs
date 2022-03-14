@@ -1795,7 +1795,7 @@ impl JXattrVal {
 // Data Streams
 
 #[derive(Debug)]
-struct JPhysExtKey {
+pub struct JPhysExtKey {
     //hdr: JKey,
 }
 
@@ -1811,7 +1811,7 @@ const PEXT_KIND_MASK : u64 = 0xf000000000000000;
 const PEXT_KIND_SHIFT : usize = 60;
 
 #[derive(Debug)]
-struct JPhysExtVal {
+pub struct JPhysExtVal {
     len_and_kind: u64,
     owning_obj_id: u64,
     refcnt: i32,
