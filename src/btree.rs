@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey, JPhysExtKey};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey, JPhysExtKey, JSnapMetadataVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -316,15 +316,25 @@ impl LeafValue for SpacemanFreeQueueValue {
 //    }
 //}
 
-impl Value for JPhysExtVal {}
+// impl Value for JPhysExtVal {}
 
-impl LeafValue for JPhysExtVal {
-    type Key = ApfsKey;
+// impl LeafValue for JPhysExtVal {
+//     type Key = ApfsKey;
 
-    fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
-        Ok(JPhysExtVal::import(source)?)
-    }
-}
+//     fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
+//         Ok(JPhysExtVal::import(source)?)
+//     }
+// }
+
+// impl Value for JSnapMetadataVal {}
+
+// impl LeafValue for JSnapMetadataVal {
+//     type Key = ApfsKey;
+
+//     fn import(source: &mut dyn Read, _: &Self::Key) -> io::Result<Self> {
+//         Ok(JSnapMetadataVal::import(source)?)
+//     }
+// }
 
 pub trait Record: Debug {
     type Key: Key;
@@ -670,7 +680,8 @@ impl<V> Btree<V> where
         if body.header.subtype.r#type() != ObjectType::Omap &&
            body.header.subtype.r#type() != ObjectType::Fstree &&
            body.header.subtype.r#type() != ObjectType::SpacemanFreeQueue &&
-           body.header.subtype.r#type() != ObjectType::Blockreftree {
+           body.header.subtype.r#type() != ObjectType::Blockreftree &&
+           body.header.subtype.r#type() != ObjectType::Snapmetatree {
             return Err(io::Error::new(io::ErrorKind::Unsupported, "Unsupported B-tree type"));
         }
         let toc = &body.body.data[body.body.table_space.off as usize..(body.body.table_space.off+body.body.table_space.len) as usize];
@@ -783,7 +794,10 @@ pub enum BtreeTypes {
     Omap(Btree<OmapVal>),
     Apfs(Btree<ApfsValue>),
     SpacemanFreeQueue(Btree<SpacemanFreeQueueValue>),
-    ExtentRef(Btree<JPhysExtVal>),
+    //ExtentRef(Btree<JPhysExtVal>),
+    ExtentRef(Btree<ApfsValue>),
+    // SnapMetadata(Btree<JSnapMetadataVal>),
+    SnapMetadata(Btree<ApfsValue>),
 }
 
 pub fn load_btree_generic<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeTypes> {
@@ -800,11 +814,12 @@ pub fn load_btree_generic<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: 
         },
     };
     Ok(match body.header.subtype.r#type() {
-        ObjectType::Omap => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
+        ObjectType::Omap => BtreeTypes::Omap(Btree::load_btree(apfs, oid, r#type)?),
         ObjectType::Fstree => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
-        ObjectType::SpacemanFreeQueue => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
-        ObjectType::Blockreftree => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
-        _ => { 
+        ObjectType::SpacemanFreeQueue => BtreeTypes::SpacemanFreeQueue(Btree::load_btree(apfs, oid, r#type)?),
+        ObjectType::Blockreftree => BtreeTypes::ExtentRef(Btree::load_btree(apfs, oid, r#type)?),
+        ObjectType::Snapmetatree => BtreeTypes::SnapMetadata(Btree::load_btree(apfs, oid, r#type)?),
+        _ => {
             return Err(io::Error::new(io::ErrorKind::Unsupported,
                  format!("B-Tree type not supported: {:?}", body.header.subtype.r#type())));
         },

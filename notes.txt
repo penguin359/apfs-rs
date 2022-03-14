@@ -41,3 +41,9 @@ OBJECT_TYPE_FSTREE.
 
 OBJECT_TYPE_BLOCKREFTREE vs OBJECT_TYPE_BLOCKREF
 
+
+apfs_snap_meta_tree_type
+The type of the snapshot metadata tree.
+uint32_t apfs_snap_meta_tree_type
+The value is typically OBJ_PHYSICAL | OBJECT_TYPE_BTREE, with a subtype of
+OBJECT_TYPE_BLOCKREF.

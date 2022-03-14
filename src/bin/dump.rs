@@ -169,6 +169,9 @@ fn main() {
         let extentref_btree = load_btree_generic(&mut apfs, volume.body.extentref_tree_oid, StorageType::Physical)
             .expect("Bad b-tree load");
         println!("Volume Extent Reference B-Tree: {:#?}", &extentref_btree);
+        let snap_meta_btree = load_btree_generic(&mut apfs, volume.body.snap_meta_tree_oid, StorageType::Physical)
+            .expect("Bad b-tree load");
+        println!("Volume Snapshot Metadata B-Tree: {:#?}", &snap_meta_btree);
         let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.root_tree_oid.0, u64::MAX))
             .expect("I/O error")
             .expect("Failed to find address for Volume root B-tree");

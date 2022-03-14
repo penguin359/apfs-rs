@@ -2078,7 +2078,7 @@ bitflags! {
 }
 
 #[derive(Debug)]
-struct JSnapMetadataKey {
+pub struct JSnapMetadataKey {
     //hdr: JKey,
 }
 
@@ -2090,7 +2090,7 @@ impl JSnapMetadataKey {
 }
 
 #[derive(Debug)]
-struct JSnapMetadataVal {
+pub struct JSnapMetadataVal {
     extentref_tree_oid: Oid,
     sblock_oid: Oid,
     create_time: u64,
