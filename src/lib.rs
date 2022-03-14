@@ -216,20 +216,27 @@ mod tests {
         assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
     }
 
+    fn rotate_checkpoint_descriptor(apfs: &mut APFS<DummySource>, rotations: u8) {
+        // Rotate the 8 blocks that make up the checkpoint descriptor
+        for _ in 0..rotations {
+            let tmp = apfs.source.blocks.remove(&1).unwrap();
+            for idx in 1..8 {
+                let next = apfs.source.blocks.remove(&(idx+1)).unwrap();
+                apfs.source.blocks.insert(idx, next);
+            }
+            apfs.source.blocks.insert(8, tmp);
+        }
+    }
+
+    fn corrupt_descriptor_block(apfs: &mut APFS<DummySource>, block: u64) {
+        apfs.source.blocks.get_mut(&block).unwrap()[0] = 0xff;
+    }
+
     #[test]
     fn mounting_test_apfs_has_correct_superblock_when_rotated() {
         for rotations in 1..7 {
             let mut apfs = load_test_apfs_checkpoints();
-
-            // Rotate the 8 blocks that make up the checkpoint descriptor
-            for _ in 0..rotations {
-                let tmp = apfs.source.blocks.remove(&1).unwrap();
-                for idx in 1..8 {
-                    let next = apfs.source.blocks.remove(&(idx+1)).unwrap();
-                    apfs.source.blocks.insert(idx, next);
-                }
-                apfs.source.blocks.insert(8, tmp);
-            }
+            rotate_checkpoint_descriptor(&mut apfs, rotations);
             let mount = APFSMount::mount(apfs).unwrap();
             assert_eq!(mount.superblock.header.oid, Oid(1));
             assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
@@ -241,18 +248,76 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn mounting_test_apfs_when_latest_superblock_corrupted() {
-    //     let apfs = load_test_apfs_checkpoints();
-    //     let mount = APFSMount::mount(apfs).unwrap();
-    //     assert_eq!(mount.superblock.header.oid, Oid(1));
-    //     assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
-    //     assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
-    //     assert!(mount.superblock.header.r#type.flags().is_empty());
-    //     assert_eq!(mount.superblock.header.xid, Xid(4));
-    //     assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 35);
-    //     assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
-    // }
+    #[test]
+    fn mounting_test_apfs_when_other_superblocks_corrupted() {
+        for rotations in 0..7 {
+            let mut apfs = load_test_apfs_checkpoints();
+            for idx in 1..7 {
+                corrupt_descriptor_block(&mut apfs, idx);
+            }
+            rotate_checkpoint_descriptor(&mut apfs, rotations);
+            let mount = APFSMount::mount(apfs).unwrap();
+            assert_eq!(mount.superblock.header.oid, Oid(1));
+            assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+            assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+            assert!(mount.superblock.header.r#type.flags().is_empty());
+            assert_eq!(mount.superblock.header.xid, Xid(4));
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 35);
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+        }
+    }
+
+    #[test]
+    fn mounting_test_apfs_when_latest_superblock_corrupted() {
+        for rotations in 0..7 {
+            let mut apfs = load_test_apfs_checkpoints();
+            corrupt_descriptor_block(&mut apfs, 8);
+            rotate_checkpoint_descriptor(&mut apfs, rotations);
+            let mount = APFSMount::mount(apfs).unwrap();
+            assert_eq!(mount.superblock.header.oid, Oid(1));
+            assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+            assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+            assert!(mount.superblock.header.r#type.flags().is_empty());
+            assert_eq!(mount.superblock.header.xid, Xid(3));
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 25);
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+        }
+    }
+
+    #[test]
+    fn mounting_test_apfs_when_latest_checkpoint_map_corrupted() {
+        for rotations in 0..7 {
+            let mut apfs = load_test_apfs_checkpoints();
+            corrupt_descriptor_block(&mut apfs, 7);
+            rotate_checkpoint_descriptor(&mut apfs, rotations);
+            let mount = APFSMount::mount(apfs).unwrap();
+            assert_eq!(mount.superblock.header.oid, Oid(1));
+            assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+            assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+            assert!(mount.superblock.header.r#type.flags().is_empty());
+            assert_eq!(mount.superblock.header.xid, Xid(3));
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 25);
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+        }
+    }
+
+    #[test]
+    fn mounting_test_apfs_when_multiple_checkpoints_corrupted() {
+        for rotations in 0..7 {
+            let mut apfs = load_test_apfs_checkpoints();
+            corrupt_descriptor_block(&mut apfs, 6);
+            corrupt_descriptor_block(&mut apfs, 7);
+            rotate_checkpoint_descriptor(&mut apfs, rotations);
+            let mount = APFSMount::mount(apfs).unwrap();
+            assert_eq!(mount.superblock.header.oid, Oid(1));
+            assert_eq!(mount.superblock.header.r#type.r#type(), ObjectType::NxSuperblock);
+            assert_eq!(mount.superblock.header.r#type.storage(), StorageType::Ephemeral);
+            assert!(mount.superblock.header.r#type.flags().is_empty());
+            assert_eq!(mount.superblock.header.xid, Xid(2));
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumSet as usize], 16);
+            assert_eq!(mount.superblock.body.counters[CounterId::CntrObjCksumFail as usize], 0);
+        }
+    }
 }
 
 use std::collections::BTreeMap;
@@ -470,9 +535,12 @@ impl<S: Read + Seek> APFSMount<S> {
         for idx in 0..superblock.body.xp_desc_blocks {
             let object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0+idx as i64));
             if let Ok(APFSObject::Superblock(body)) = object {
-                if body.header.xid.0 > best_xid {
-                    best_xid = body.header.xid.0;
-                    superblock = body;
+                let map_object = apfs.load_object_addr(Paddr(superblock.body.xp_desc_base.0 + ((idx + superblock.body.xp_desc_blocks - 1) % superblock.body.xp_desc_blocks) as i64));
+                if let Ok(APFSObject::CheckpointMapping(map_body)) = map_object {
+                    if body.header.xid.0 > best_xid {
+                        best_xid = body.header.xid.0;
+                        superblock = body;
+                    }
                 }
             }
         }
