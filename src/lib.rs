@@ -398,6 +398,12 @@ pub struct NxEfiJumpstartObject {
 }
 
 #[derive(Debug)]
+pub struct SnapMetaExtObject {
+    header: ObjPhys,
+    pub body: SnapMetaExtObjPhys,
+}
+
+#[derive(Debug)]
 pub enum APFSObject {
     Superblock(NxSuperblockObject),
     CheckpointMapping(CheckpointMapPhysObject),
@@ -409,6 +415,7 @@ pub enum APFSObject {
     SpacemanCib(ChunkInfoBlockObject),
     NxReaper(NxReaperObject),
     EfiJumpstart(NxEfiJumpstartObject),
+    SnapMetaExt(SnapMetaExtObject),
 }
 
 pub struct APFS<S: Read + Seek> {
@@ -502,6 +509,11 @@ impl<S: Read + Seek> APFS<S> {
                 APFSObject::EfiJumpstart(NxEfiJumpstartObject {
                 header,
                 body: NxEfiJumpstart::import(&mut cursor)?,
+            }),
+            ObjectType::SnapMetaExt =>
+                APFSObject::SnapMetaExt(SnapMetaExtObject {
+                header,
+                body: SnapMetaExtObjPhys::import(&mut cursor)?,
             }),
             _ => { return Err(io::Error::new(io::ErrorKind::Other, format!("Unsupported type: {:?}", header.r#type.r#type()))); },
         };

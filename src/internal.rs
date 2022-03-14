@@ -828,7 +828,7 @@ pub struct ApfsSuperblock {
     cloneinfo_id_epoch: u64,
     cloneinfo_xid: u64,
 
-    snap_meta_ext_oid: Oid,
+    pub snap_meta_ext_oid: Oid,
 
     volume_group_id: Uuid,
 
@@ -2186,7 +2186,7 @@ impl SnapMetaExt {
 }
 
 #[derive(Debug)]
-struct SnapMetaExtObjPhys {
+pub struct SnapMetaExtObjPhys {
     //smeop_o: ObjPhys,
     sme: SnapMetaExt,
 }

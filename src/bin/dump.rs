@@ -162,6 +162,7 @@ fn main() {
        superblock.body.keylocker.block_count != 0 {
         println!("Found keylocker");
         println!("{:?}", apfs.load_block(superblock.body.keylocker.start_paddr));
+        println!("{:?}", apfs.load_object_addr(superblock.body.keylocker.start_paddr));
     }
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
@@ -197,6 +198,18 @@ fn main() {
         dump_omap_apfs_records(&btree, &mut apfs, &btree.root.records);
         dump_btree("Volume Extent Reference", &mut apfs, volume.body.extentref_tree_oid);
         dump_btree("Volume Snapshot Metadata", &mut apfs, volume.body.snap_meta_tree_oid);
+        if volume.body.snap_meta_ext_oid != Oid(0) {
+            let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.snap_meta_ext_oid.0, u64::MAX))
+                .expect("I/O error")
+                .expect("Failed to find address for Volume Snapshot extended data");
+            let object = apfs.load_object_oid(Oid(root_object.value.paddr.0 as u64), StorageType::Physical).unwrap();
+            let ext = match object {
+                APFSObject::SnapMetaExt(x) => x,
+                _ => { panic!("Wrong object type!"); },
+            };
+            println!("Volume Snapshot extended data: {:#?}", ext);
+        }
+
         let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.root_tree_oid.0, u64::MAX))
             .expect("I/O error")
             .expect("Failed to find address for Volume root B-tree");
