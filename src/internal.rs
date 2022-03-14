@@ -2126,11 +2126,11 @@ impl JSnapMetadataVal {
 }
 
 #[derive(Debug)]
-struct JSnapNameKey {
+pub struct JSnapNameKey {
     //hdr: JKey,
     name_len: u16,
     //name: Vec<u8>,
-    name: String,
+    pub name: String,
 }
 
 impl JSnapNameKey {
@@ -2148,7 +2148,7 @@ impl JSnapNameKey {
 }
 
 #[derive(Debug)]
-struct JSnapNameVal {
+pub struct JSnapNameVal {
     snap_xid: Xid,
 }
 

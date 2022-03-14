@@ -12,7 +12,7 @@ use std::rc::Rc;
 use byteorder::{LittleEndian, ReadBytesExt, BigEndian};
 use num_traits::FromPrimitive;
 
-use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey, JPhysExtKey, JSnapMetadataVal};
+use crate::{BtreeNodePhys, KVoff, ObjectType, JObjTypes, JDrecHashedKey, JInodeKey, JInodeVal, JDrecVal, JXattrVal, JXattrKey, JFileExtentKey, JFileExtentVal, JDstreamIdKey, JDstreamIdVal, JSiblingKey, JSiblingMapKey, JSiblingMapVal, XfBlob, XFieldDrec, DrecExtType, XFieldInode, InoExtType, JDstream, JDrecKey, JSiblingVal, SpacemanFreeQueueKey, SpacemanFreeQueueVal, BtFlags, BTOFF_INVALID, JDirStatsVal, JDirStatsKey, JPhysExtKey, JSnapMetadataVal, JSnapMetadataKey, JSnapNameKey, JSnapNameVal};
 use crate::internal::{KVloc, Nloc};
 use crate::internal::Oid;
 use crate::internal::Xid;
@@ -230,6 +230,22 @@ impl Key for ApfsKey {
                     subkey: ApfsSubKey::None,
                 });
             },
+            JObjTypes::SnapMetadata => {
+                let subkey = JSnapMetadataKey::import(key_cursor)?;
+                println!("SnapMetadata key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::None,
+                });
+            },
+            JObjTypes::SnapName => {
+                let subkey = JSnapNameKey::import(key_cursor)?;
+                println!("SnapName key: {:?}", &subkey);
+                return Ok(ApfsKey {
+                    key: key,
+                    subkey: ApfsSubKey::Name(subkey.name),
+                });
+            },
             _ => {
                 println!("Unsupported key type: {:?}!", key_type);
             },
@@ -399,7 +415,7 @@ pub struct DrecValue {
 
 #[derive(Debug)]
 pub enum ApfsValue {
-    //SnapMetadata,
+    SnapMetadata(JSnapMetadataVal),
     Extent(JPhysExtVal),
     Inode(InodeValue),
     Xattr(JXattrVal),
@@ -409,7 +425,7 @@ pub enum ApfsValue {
     FileExtent(JFileExtentVal),
     DirRec(DrecValue),
     DirStats(JDirStatsVal),
-    //SnapName,
+    SnapName(JSnapNameVal),
     SiblingMap(JSiblingMapVal),
     //FileInfo,
 }
@@ -422,7 +438,7 @@ impl LeafValue for ApfsValue {
     fn import(value_cursor: &mut dyn Read, key: &Self::Key) -> io::Result<Self> {
         let key_type = key.key.obj_id_and_type.r#type();
         println!("Key type: {:?}", key);
-        match key_type {
+        Ok(match key_type {
             JObjTypes::Inode => {
                 let value = JInodeVal::import(value_cursor)?;
                 println!("Inode: {:?}", &value);
@@ -492,10 +508,10 @@ impl LeafValue for ApfsValue {
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(ApfsValue::Inode(InodeValue {
+                ApfsValue::Inode(InodeValue {
                     value,
                     xdata: xdata_map,
-                }));
+                })
             },
             JObjTypes::DirRec => {
                 let value = JDrecVal::import(value_cursor)?;
@@ -522,20 +538,20 @@ impl LeafValue for ApfsValue {
                     }
                     println!("Fields: {:?}", &fields);
                 }
-                return Ok(ApfsValue::DirRec(DrecValue {
+                ApfsValue::DirRec(DrecValue {
                     value,
                     xdata: xdata_map,
-                }));
+                })
             },
             JObjTypes::DirStats => {
                 let value = JDirStatsVal::import(value_cursor).unwrap();
                 println!("DirStats: {:?}", &value);
-                return Ok(ApfsValue::DirStats(value));
+                ApfsValue::DirStats(value)
             },
             JObjTypes::Xattr => {
                 let value = JXattrVal::import(value_cursor).unwrap();
                 println!("Xattr: {:?}", &value);
-                return Ok(ApfsValue::Xattr(value));
+                ApfsValue::Xattr(value)
             },
             JObjTypes::FileExtent => {
                 let value = JFileExtentVal::import(value_cursor)?;
@@ -546,33 +562,42 @@ impl LeafValue for ApfsValue {
                 // if let Ok(block) = apfs.load_block(Paddr(value.phys_block_num as i64)) {
                 //     println!("Body: '{}'", String::from_utf8((&block[0..length]).to_owned()).unwrap());
                 // }
-                return Ok(ApfsValue::FileExtent(value));
+                ApfsValue::FileExtent(value)
             },
             JObjTypes::DstreamId => {
                 let value = JDstreamIdVal::import(value_cursor)?;
                 println!("DstreamId: {:?}", &value);
-                return Ok(ApfsValue::DstreamId(value));
+                ApfsValue::DstreamId(value)
             },
             JObjTypes::SiblingLink => {
                 let value = JSiblingVal::import(value_cursor)?;
                 println!("SiblingLink: {:?}", &value);
-                return Ok(ApfsValue::SiblingLink(value));
+                ApfsValue::SiblingLink(value)
             },
             JObjTypes::SiblingMap => {
                 let value = JSiblingMapVal::import(value_cursor)?;
                 println!("SiblingMap: {:?}", &value);
-                return Ok(ApfsValue::SiblingMap(value));
+                ApfsValue::SiblingMap(value)
             },
             JObjTypes::Extent => {
                 let value = JPhysExtVal::import(value_cursor)?;
                 println!("Extent: {:?}", &value);
-                return Ok(ApfsValue::Extent(value));
+                ApfsValue::Extent(value)
+            },
+            JObjTypes::SnapMetadata => {
+                let value = JSnapMetadataVal::import(value_cursor)?;
+                println!("SnapMetadata: {:?}", &value);
+                ApfsValue::SnapMetadata(value)
+            },
+            JObjTypes::SnapName => {
+                let value = JSnapNameVal::import(value_cursor)?;
+                println!("SnapName: {:?}", &value);
+                ApfsValue::SnapName(value)
             },
             _ => {
-                println!("Unsupported key type: {:?}!", key_type);
+                return Err(io::Error::new(io::ErrorKind::Unsupported, format!("Unrecognized APFS value type: {:?}", key_type)));
             },
-        }
-        return Err(io::Error::new(io::ErrorKind::Unsupported, "Unrecognized APFS value type"));
+        })
     }
 }
 

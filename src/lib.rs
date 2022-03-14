@@ -325,10 +325,10 @@ use std::fs::File;
 use std::io::{self, prelude::*, Cursor, SeekFrom};
 use std::path::Path;
 
-use btree::{Key, Value, Record, LeafValue};
+use btree::{Key, Value, Record};
 use num_traits::FromPrimitive;
 
-pub use btree::{Btree, OmapRecord, ApfsKey, ApfsValue, LeafRecord, NonLeafRecord, AnyRecords, InodeXdata, SpacemanFreeQueueValue, load_btree_generic};
+pub use btree::{Btree, OmapRecord, ApfsKey, ApfsValue, LeafRecord, LeafValue, NonLeafRecord, AnyRecords, InodeXdata, SpacemanFreeQueueValue, BtreeTypes, load_btree_generic};
 
 #[macro_use]
 mod int_strings;

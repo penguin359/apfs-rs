@@ -1,8 +1,37 @@
 use std::{fs::File, cmp::min};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes};
 
 use std::{env, collections::HashMap};
+
+fn dump_btree_records<V>(name: &str, btree: &Btree<V>, apfs: &mut APFS<File>, records: &AnyRecords<V>) where V: LeafValue {
+    match records {
+        AnyRecords::Leaf(_) => {},
+        AnyRecords::NonLeaf(children, _) => {
+            for child in children {
+                let node_result = btree.load_btree_node(apfs, child.value.oid, StorageType::Physical);
+                if node_result.is_err() {
+                    println!("Error: {:?}", node_result.as_ref().err());
+                }
+                assert!(node_result.is_ok(), "Bad b-tree node load");
+                let node = node_result.unwrap();
+                println!("{} sub B-Tree: {:#?}", name, node);
+                dump_btree_records(name, btree, apfs, &node.records);
+            }
+        },
+    };
+}
+
+fn dump_btree(name: &str, apfs: &mut APFS<File>, oid: Oid) {
+    let btree = load_btree_generic(apfs, oid, StorageType::Physical)
+        .expect("Bad b-tree load");
+    println!("{} B-Tree: {:#?}", name, &btree);
+    match btree {
+        BtreeTypes::ExtentRef(body) => dump_btree_records(name, &body, apfs, &body.root.records),
+        BtreeTypes::SnapMetadata(body) => dump_btree_records(name, &body, apfs, &body.root.records),
+        _ => { unimplemented!("Unsupported generic B-Tree"); },
+    }
+}
 
 fn dump_omap_apfs_records(btree: &Btree<OmapVal>, apfs: &mut APFS<File>, records: &AnyRecords<OmapVal>) {
     match records {
@@ -166,12 +195,8 @@ fn main() {
             .expect("Bad b-tree load");
         println!("Volume Object Map B-Tree: {:#?}", &btree);
         dump_omap_apfs_records(&btree, &mut apfs, &btree.root.records);
-        let extentref_btree = load_btree_generic(&mut apfs, volume.body.extentref_tree_oid, StorageType::Physical)
-            .expect("Bad b-tree load");
-        println!("Volume Extent Reference B-Tree: {:#?}", &extentref_btree);
-        let snap_meta_btree = load_btree_generic(&mut apfs, volume.body.snap_meta_tree_oid, StorageType::Physical)
-            .expect("Bad b-tree load");
-        println!("Volume Snapshot Metadata B-Tree: {:#?}", &snap_meta_btree);
+        dump_btree("Volume Extent Reference", &mut apfs, volume.body.extentref_tree_oid);
+        dump_btree("Volume Snapshot Metadata", &mut apfs, volume.body.snap_meta_tree_oid);
         let root_object = btree.get_record(&mut apfs, &OmapKey::new(volume.body.root_tree_oid.0, u64::MAX))
             .expect("I/O error")
             .expect("Failed to find address for Volume root B-tree");
