@@ -595,8 +595,7 @@ enum BtreeRawObject {
     BtreeNonRoot(BtreeNodeObject),
 }
 
-impl<V> Btree<V> where
-    V: LeafValue {
+impl BtreeRawObject {
     fn load_btree_object<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeRawObject> {
         let object = apfs.load_object_oid(oid, r#type)?;
         let body = match object {
@@ -610,7 +609,10 @@ impl<V> Btree<V> where
         };
         Ok(body)
     }
+}
 
+impl<V> Btree<V> where
+    V: LeafValue {
     fn decode_btree_node(body: BtreeNodeObject, info: &BtreeInfo) -> io::Result<BtreeNode<V>> {
         if body.header.subtype.r#type() != ObjectType::Omap &&
            body.header.subtype.r#type() != ObjectType::Fstree &&
@@ -685,7 +687,7 @@ impl<V> Btree<V> where
     }
 
     pub fn load_btree_node<S: Read + Seek>(&self, apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeNode<V>> {
-        let body = match Self::load_btree_object(apfs, oid, r#type)? {
+        let body = match BtreeRawObject::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeNonRoot(body) => body,
             _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Root node as a descendent in tree")); },
         };
@@ -694,7 +696,7 @@ impl<V> Btree<V> where
     }
 
     pub fn load_btree<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<Btree<V>> {
-        let (body, info) = match Self::load_btree_object(apfs, oid, r#type)? {
+        let (body, info) = match BtreeRawObject::load_btree_object(apfs, oid, r#type)? {
             BtreeRawObject::BtreeRoot(body, info) => (body, info),
             _ => { return Err(io::Error::new(io::ErrorKind::InvalidData, "Non-root node at top of tree")); },
         };
@@ -720,4 +722,31 @@ impl Btree<OmapVal> {
     pub fn get_record<S: Read + Seek>(&self, apfs: &mut APFS<S>, key: &OmapKey) -> io::Result<Option<OmapRecord>> {
         self.get_record_node(apfs, &self.root, key)
     }
+}
+
+pub enum BtreeTypes {
+    Omap(Btree<OmapVal>),
+    Apfs(Btree<ApfsValue>),
+    SpacemanFreeQueue(Btree<SpacemanFreeQueueValue>),
+}
+
+pub fn load_btree_generic<S: Read + Seek>(apfs: &mut APFS<S>, oid: Oid, r#type: StorageType) -> io::Result<BtreeTypes> {
+    let object = apfs.load_object_oid(oid, r#type)?;
+    let body = match object {
+        APFSObject::Btree(mut body) => body,
+        APFSObject::BtreeNode(mut body) => {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                 "Non-root node at top of tree"));
+        },
+        _ => {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                 "Object is not a B-Tree"));
+        },
+    };
+    Ok(match body.header.subtype.r#type() {
+        ObjectType::Omap => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
+        ObjectType::Fstree => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
+        ObjectType::SpacemanFreeQueue => BtreeTypes::Apfs(Btree::load_btree(apfs, oid, r#type)?),
+        _ => { unimplemented!("B-Tree type not supported"); },
+    })
 }

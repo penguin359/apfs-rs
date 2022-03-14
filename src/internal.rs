@@ -153,7 +153,7 @@ pub enum ObjectType {
 }
 
 #[repr(u32)]
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]
 pub enum StorageType {
     Virtual                       = 0x00000000,
     Ephemeral                     = 0x80000000,
