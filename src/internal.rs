@@ -2068,6 +2068,138 @@ impl JSiblingMapVal {
 }
 
 
+// Snapshot Metadata
+
+bitflags! {
+    pub struct SnapMetaFlags: u32 {
+        const PENDING_DATALESS = 0x00000001;
+        const MERGE_IN_PROGRESS = 0x00000002;
+    }
+}
+
+#[derive(Debug)]
+struct JSnapMetadataKey {
+    //hdr: JKey,
+}
+
+impl JSnapMetadataKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+#[derive(Debug)]
+struct JSnapMetadataVal {
+    extentref_tree_oid: Oid,
+    sblock_oid: Oid,
+    create_time: u64,
+    change_time: u64,
+    inum: u64,
+    extentref_tree_type: u32,
+    flags: SnapMetaFlags,
+    name_len: u16,
+    //name: Vec<u8>,
+    name: String,
+}
+
+impl JSnapMetadataVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            extentref_tree_oid: Oid::import(source)?,
+            sblock_oid: Oid::import(source)?,
+            create_time: source.read_u64::<LittleEndian>()?,
+            change_time: source.read_u64::<LittleEndian>()?,
+            inum: source.read_u64::<LittleEndian>()?,
+            extentref_tree_type: source.read_u32::<LittleEndian>()?,
+            flags: SnapMetaFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown reaper list flags"))?,
+            name_len: source.read_u16::<LittleEndian>()?,
+            name: String::new(),
+        };
+        let mut name = vec![0u8; value.name_len as usize];
+        source.read_exact(&mut name)?;
+        value.name = String::from_utf8(name)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct JSnapNameKey {
+    //hdr: JKey,
+    name_len: u16,
+    //name: Vec<u8>,
+    name: String,
+}
+
+impl JSnapNameKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            name_len: source.read_u16::<LittleEndian>()?,
+            name: String::new(),
+        };
+        let mut name = vec![0u8; value.name_len as usize];
+        source.read_exact(&mut name)?;
+        value.name = String::from_utf8(name)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct JSnapNameVal {
+    snap_xid: Xid,
+}
+
+impl JSnapNameVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            snap_xid: Xid::import(source)?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct SnapMetaExt {
+    version: u32,
+
+    flags: u32,
+    snap_xid: Xid,
+    uuid: Uuid,
+
+    token: u64,
+}
+
+impl SnapMetaExt {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            version: source.read_u32::<LittleEndian>()?,
+
+            flags: source.read_u32::<LittleEndian>()?,
+            snap_xid: Xid::import(source)?,
+            uuid: import_uuid(source)?,
+
+            token: source.read_u64::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct SnapMetaExtObjPhys {
+    //smeop_o: ObjPhys,
+    sme: SnapMetaExt,
+}
+
+impl SnapMetaExtObjPhys {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            sme: SnapMetaExt::import(source)?,
+        })
+    }
+}
+
+
 // Reaper
 
 bitflags! {
