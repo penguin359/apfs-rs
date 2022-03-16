@@ -172,8 +172,10 @@ pub struct ObjectTypeAndFlags(u32);
 
 impl ObjectTypeAndFlags {
     pub fn new(value: u32) -> io::Result<ObjectTypeAndFlags> {
-        ObjectType::from_u32(value & OBJECT_TYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown object type: {}", value & OBJECT_TYPE_MASK)))?;
-        StorageType::from_u32(value & OBJ_STORAGETYPE_MASK).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown storage type"))?;
+        ObjectType::from_u32(value & OBJECT_TYPE_MASK)
+            .ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown object type: {}", value & OBJECT_TYPE_MASK)))?;
+        StorageType::from_u32(value & OBJ_STORAGETYPE_MASK)
+            .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown storage type"))?;
         ObjTypeFlags::from_bits(value & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK)).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown object flags"))?;
         Ok(ObjectTypeAndFlags(value))
     }
@@ -187,11 +189,13 @@ impl ObjectTypeAndFlags {
     }
 
     pub fn r#type(&self) -> ObjectType {
-        ObjectType::from_u32(self.0 & OBJECT_TYPE_MASK).expect("Unknown object type")
+        ObjectType::from_u32(self.0 & OBJECT_TYPE_MASK)
+            .expect("Unknown object type")
     }
 
     pub fn storage(&self) -> StorageType {
-        StorageType::from_u32(self.0 & OBJ_STORAGETYPE_MASK).expect("Unknown storage type")
+        StorageType::from_u32(self.0 & OBJ_STORAGETYPE_MASK)
+            .expect("Unknown storage type")
     }
 
     pub fn flags(&self) -> ObjTypeFlags {
@@ -306,7 +310,7 @@ pub struct NxSuperblock {
         readonly_compatible_features: SuperblockRocompatFlags,
         incompatible_features: SuperblockIncompatFlags,
 
-        uuid: Uuid,
+        pub uuid: Uuid,
 
         next_oid: Oid,
         next_xid: Xid,
@@ -1114,13 +1118,64 @@ impl BtnIndexNodeVal {
 
 
 // Encryption
-// Early definitions needed only
 
-// These types for encrytion are unfinished, but needed to skip over in Volume superblock
-type CpKeyClass = u32;
 type CpKeyOsVersion = u32;
 type CpKeyRevision = u16;
-type CryptoFlags = u32;
+
+const CP_EFFECTIVE_CLASSMASK: usize = 0x0000001f;
+
+#[repr(u32)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+enum CpKeyClass {  // ProtectionClass
+    DirNone = 0,
+    A = 1,
+    B = 2,
+    C = 3,
+    D = 4,
+    F = 6,
+    M = 14,
+}
+
+bitflags! {
+    struct CryptoFlags: u32 {
+        // No flags currently defined
+    }
+}
+
+#[derive(Debug)]
+struct WrappedCryptoState {
+    major_version: u16,
+    minor_version: u16,
+    cpflags: CryptoFlags,
+    persistent_class: CpKeyClass,
+    key_os_version: CpKeyOsVersion,
+    key_revision: CpKeyRevision,
+    key_len: u16,
+    persistent_key: Vec<u8>,
+}
+
+const CP_MAX_WRAPPEDKEYSIZE: u16 = 128;
+
+impl WrappedCryptoState {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            major_version: source.read_u16::<LittleEndian>()?,
+            minor_version: source.read_u16::<LittleEndian>()?,
+            cpflags: CryptoFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown crypto flags"))?,
+            persistent_class: CpKeyClass::from_u32(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown crypto protection class"))?,
+            key_os_version: source.read_u32::<LittleEndian>()?,
+            key_revision: source.read_u16::<LittleEndian>()?,
+            key_len: source.read_u16::<LittleEndian>()?,
+            persistent_key: vec![],
+        };
+        for _ in 0..value.key_len {
+            value.persistent_key.push(source.read_u8()?);
+        }
+        Ok(value)
+    }
+}
 
 #[derive(Debug)]
 struct WrappedMetaCryptoState {
@@ -1138,11 +1193,144 @@ impl WrappedMetaCryptoState  {
         Ok(Self {
             major_version: source.read_u16::<LittleEndian>()?,
             minor_version: source.read_u16::<LittleEndian>()?,
-            cpflags: source.read_u32::<LittleEndian>()?,
-            persistent_class: source.read_u32::<LittleEndian>()?,
+            cpflags: CryptoFlags::from_bits(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown crypto flags"))?,
+            persistent_class: CpKeyClass::from_u32(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown crypto protection class"))?,
             key_os_version: source.read_u32::<LittleEndian>()?,
             key_revision: source.read_u16::<LittleEndian>()?,
             unused: source.read_u16::<LittleEndian>()?,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct JCryptoKey {
+    //hdr: JKey,
+}
+
+impl JCryptoKey {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+        })
+    }
+}
+
+#[derive(Debug)]
+struct JCryptoVal {
+    refcnt: u32,
+    state: WrappedCryptoState,
+}
+
+impl JCryptoVal {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            refcnt: source.read_u32::<LittleEndian>()?,
+            state: WrappedCryptoState::import(source)?,
+        })
+    }
+}
+
+const CRYPTO_SW_ID: usize = 4;
+const CRYPTO_RESERVED_5: usize = 5;
+
+const APFS_UNASSIGNED_CRYPTO_ID: usize = !0;
+
+const APFS_KEYBAG_VERSION: u16 = 2;
+
+const APFS_VOL_KEYBAG_ENTRY_MAX_SIZE: usize = 512;
+const APFS_FV_PERSONAL_RECOVERY_KEY_UUID: &str = "EBC6C064-0000-11AA-AA11-00306543ECAC";
+
+#[repr(u16)]
+#[derive(Debug, PartialEq, FromPrimitive)]
+enum KbTag {
+    Unknown = 0,
+    Reserved1 = 1,
+    VolumeKey = 2,
+    VolumeUnlockRecords = 3,
+    VolumePassphraseHint = 4,
+    WrappingMKey = 5,
+    VolumeMKey = 6,
+    ReservedF8 = 0xF8,
+}
+
+#[derive(Debug)]
+struct KeybagEntry {
+    uuid: Uuid,
+    tag: KbTag,
+    keylen: u16,
+    padding: [u8; 4],
+    keydata: Vec<u8>,
+}
+
+impl KeybagEntry {
+    fn import_padding(source: &mut dyn Read) -> io::Result<[u8; 4]> {
+        let mut values = [0; 4];
+        for entry in values.iter_mut() {
+            *entry = source.read_u8()?;
+        }
+        Ok(values)
+    }
+
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            uuid: import_uuid(source)?,
+            tag: KbTag::from_u16(source.read_u16::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown keybag tag"))?,
+            keylen: source.read_u16::<LittleEndian>()?,
+            padding: Self::import_padding(source)?,
+            keydata: vec![],
+        };
+        for _ in 0..value.keylen {
+            value.keydata.push(source.read_u8()?);
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct KbLocker {
+    version: u16,
+    nkeys: u16,
+    nbytes: u32,
+    padding: [u8; 8],
+    entries: Vec<KeybagEntry>,
+}
+
+impl KbLocker {
+    fn import_padding(source: &mut dyn Read) -> io::Result<[u8; 8]> {
+        let mut values = [0; 8];
+        for entry in values.iter_mut() {
+            *entry = source.read_u8()?;
+        }
+        Ok(values)
+    }
+
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        let mut value = Self {
+            version: source.read_u16::<LittleEndian>()?,
+            nkeys: source.read_u16::<LittleEndian>()?,
+            nbytes: source.read_u32::<LittleEndian>()?,
+            padding: Self::import_padding(source)?,
+            entries: vec![],
+        };
+        for _ in 0..value.nkeys {
+            value.entries.push(KeybagEntry::import(source)?);
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Debug)]
+struct MediaKeybag {
+    //mk_obj: ObjPhys,
+    locker: KbLocker,
+}
+
+impl MediaKeybag {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
+        Ok(Self {
+            locker: KbLocker::import(source)?,
         })
     }
 }
@@ -1639,7 +1827,8 @@ impl JInodeVal {
 
             nchildren_or_nlink: source.read_i32::<LittleEndian>()?,
 
-            default_protection_class: source.read_u32::<LittleEndian>()?,
+            default_protection_class: CpKeyClass::from_u32(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown crypto protection class"))?,
             write_generation_counter: source.read_u32::<LittleEndian>()?,
             bsd_flags: source.read_u32::<LittleEndian>()?,
             owner: source.read_u32::<LittleEndian>()?,
@@ -2348,7 +2537,8 @@ struct OmapReapState {
 impl OmapReapState {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
-            phase: OmapReapPhase::from_u32(source.read_u32::<LittleEndian>()?).ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown Omap Reap Phase"))?,
+            phase: OmapReapPhase::from_u32(source.read_u32::<LittleEndian>()?)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown Omap Reap Phase"))?,
             ok: OmapKey::import(source)?,
         })
     }

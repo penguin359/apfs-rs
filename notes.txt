@@ -47,3 +47,17 @@ The type of the snapshot metadata tree.
 uint32_t apfs_snap_meta_tree_type
 The value is typically OBJ_PHYSICAL | OBJECT_TYPE_BTREE, with a subtype of
 OBJECT_TYPE_BLOCKREF.
+
+
+minor_version
+The major version for this structureʼs layout.
+
+
+
+cp_key_os_version_t
+An OS version and build number.
+typedef uint32_t cp_key_os_version_t;
+This type stores an OS version and build number as follows:
+• Two bytes for the major version number as an unsigned integer
+• Two bytes for the minor version letter as an ASCII character
+• Four bytes for the build number as an unsigned integer
