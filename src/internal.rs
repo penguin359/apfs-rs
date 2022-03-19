@@ -30,7 +30,7 @@ pub struct Prange {
 }
 
 impl Prange {
-    fn import(source: &mut dyn Read) -> io::Result<Self> {
+    pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         Ok(Self {
             start_paddr: Paddr::import(source)?,
             block_count: source.read_u64::<LittleEndian>()?,
@@ -1273,7 +1273,7 @@ const APFS_FV_PERSONAL_RECOVERY_KEY_UUID: &str = "EBC6C064-0000-11AA-AA11-003065
 
 #[repr(u16)]
 #[derive(Debug, PartialEq, FromPrimitive)]
-enum KbTag {
+pub enum KbTag {
     Unknown = 0,
     Reserved1 = 1,
     VolumeKey = 2,
@@ -1285,12 +1285,12 @@ enum KbTag {
 }
 
 #[derive(Debug)]
-struct KeybagEntry {
-    uuid: Uuid,
-    tag: KbTag,
+pub struct KeybagEntry {
+    pub uuid: Uuid,
+    pub tag: KbTag,
     keylen: u16,
     padding: [u8; 4],
-    keydata: Vec<u8>,
+    pub keydata: Vec<u8>,
 }
 
 impl KeybagEntry {
@@ -1305,8 +1305,11 @@ impl KeybagEntry {
     pub fn import(source: &mut dyn Read) -> io::Result<Self> {
         let mut value = Self {
             uuid: import_uuid(source)?,
-            tag: KbTag::from_u16(source.read_u16::<LittleEndian>()?)
-                .ok_or(io::Error::new(io::ErrorKind::InvalidData, "Unknown keybag tag"))?,
+            tag: {
+                let data = source.read_u16::<LittleEndian>()?;
+                KbTag::from_u16(data)
+                .ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown keybag tag: {}", data)))?
+            },
             keylen: source.read_u16::<LittleEndian>()?,
             padding: Self::import_padding(source)?,
             keydata: vec![],
@@ -1314,17 +1317,20 @@ impl KeybagEntry {
         for _ in 0..value.keylen {
             value.keydata.push(source.read_u8()?);
         }
+        for _ in 0..((24+value.keylen)%16) {
+            source.read_u8()?;
+        }
         Ok(value)
     }
 }
 
 #[derive(Debug)]
-struct KbLocker {
+pub struct KbLocker {
     version: u16,
     nkeys: u16,
     nbytes: u32,
     padding: [u8; 8],
-    entries: Vec<KeybagEntry>,
+    pub entries: Vec<KeybagEntry>,
 }
 
 impl KbLocker {
@@ -1352,9 +1358,9 @@ impl KbLocker {
 }
 
 #[derive(Debug)]
-struct MediaKeybag {
+pub struct MediaKeybag {
     //mk_obj: ObjPhys,
-    locker: KbLocker,
+    pub locker: KbLocker,
 }
 
 impl MediaKeybag {

@@ -1,8 +1,14 @@
-use std::{fs::File, cmp::min};
+use std::{fs::File, cmp::min, io::Cursor};
+// use std::{convert::TryInto, borrow::Borrow, io::Write};
 
-use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes};
+// use aes_keywrap::Aes128KeyWrap;
+// use aes_keywrap_rs::{aes_unwrap_key, aes_unwrap_key_and_iv};
+use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes, MediaKeybag, ObjPhys, KbTag, Prange};
 
 use std::{env, collections::HashMap};
+
+use aes::{Aes128, cipher::KeyInit, cipher::generic_array::GenericArray};
+use xts_mode::{Xts128, get_tweak_default};
 
 fn dump_btree_records<V>(name: &str, btree: &Btree<V>, apfs: &mut APFS<File>, records: &AnyRecords<V>) where V: LeafValue {
     match records {
@@ -161,8 +167,75 @@ fn main() {
     if superblock.body.keylocker.start_paddr.0 != 0 &&
        superblock.body.keylocker.block_count != 0 {
         println!("Found keylocker");
-        println!("{:?}", apfs.load_block(superblock.body.keylocker.start_paddr));
-        println!("{:?}", apfs.load_object_addr(superblock.body.keylocker.start_paddr));
+        let mut encrypted_bag = apfs.load_block(superblock.body.keylocker.start_paddr).expect("failed to load keybag");
+        // println!("{:?}", encrypted_bag);
+        let kek = superblock.body.uuid.as_bytes();
+
+        let cipher_1 = Aes128::new(GenericArray::from_slice(kek));
+        let cipher_2 = Aes128::new(GenericArray::from_slice(kek));
+
+        let xts = Xts128::new(cipher_1, cipher_2);
+
+        let sector_size = 0x200;
+        let first_sector_index = superblock.body.keylocker.start_paddr.0 * (superblock.body.block_size as i64 / sector_size);
+
+        xts.decrypt_area(&mut encrypted_bag, sector_size as usize, first_sector_index as u128, get_tweak_default);
+        println!("Decrypt: {:#x?}", &encrypted_bag);
+        println!("Decrypt text: {:x?}", String::from_utf8_lossy(&encrypted_bag));
+        let mut keybag_cursor = Cursor::new(&encrypted_bag);
+        let decoded_header = ObjPhys::import(&mut keybag_cursor).expect("Failed to decode");
+        let decoded = MediaKeybag::import(&mut keybag_cursor).expect("Failed to decode");
+        println!("Decoded keybag header: {:#x?}", decoded_header);
+        println!("Decoded keybag: {:#x?}", decoded);
+        for entry in decoded.locker.entries {
+            if entry.tag == KbTag::VolumeUnlockRecords {
+                let mut unlock_cursor = Cursor::new(&entry.keydata);
+                let block_range = Prange::import(&mut unlock_cursor).expect("Invalid Prange for keybag");
+                let kek = entry.uuid.as_bytes();
+
+                let cipher_1 = Aes128::new(GenericArray::from_slice(kek));
+                let cipher_2 = Aes128::new(GenericArray::from_slice(kek));
+
+                let xts = Xts128::new(cipher_1, cipher_2);
+
+                // let sector_size = 0x200;
+                let first_sector_index = block_range.start_paddr.0 * (superblock.body.block_size as i64 / sector_size);
+                let mut encrypted_bag = apfs.load_block(block_range.start_paddr).expect("failed to load volume keybag");
+                xts.decrypt_area(&mut encrypted_bag, sector_size as usize, first_sector_index as u128, get_tweak_default);
+                println!("Volume keybag decrypt: {:#x?}", &encrypted_bag);
+                let mut keybag_cursor = Cursor::new(&encrypted_bag);
+                let decoded_header = ObjPhys::import(&mut keybag_cursor).expect("Failed to decode");
+                let decoded = MediaKeybag::import(&mut keybag_cursor).expect("Failed to decode volume keybag");
+                println!("Decoded volume keybag header: {:#x?}", decoded_header);
+                println!("Decoded volume keybag: {:#x?}", decoded);
+            } else {
+                // let mut dump_file = File::create("keybag.raw").expect("Can't open dump file for keybag");
+                // dump_file.write_all(&mut entry.keydata.clone()).expect("failed to save keybag");
+            }
+        }
+        // let bag = aes_unwrap_key(&kek, &encrypted_bag).unwrap();
+        // let test_kek = hex::decode("000102030405060708090A0B0C0D0E0F").unwrap();
+        // let test_plain = hex::decode("00112233445566778899AABBCCDDEEFF").unwrap();
+        // let test_cipher = hex::decode("1FA68B0A8112B447AEF34BD8FB5A7B829D3E862371D2CFE5").unwrap();
+        // assert_eq!(aes_unwrap_key(&test_kek, &test_cipher).unwrap(), test_plain, "Failed to match test key data on old lib");
+        // assert_eq!(Aes128KeyWrap::new(&test_kek.try_into().unwrap()).decapsulate(&test_cipher, test_plain.len()).expect("Failed to decrypt test bag"), test_plain);
+        // for len in 3900..encrypted_bag.len()+1 {
+        // println!("Key: 0x{:x?}", superblock.body.uuid.as_bytes());
+        // for len in 0..encrypted_bag.len()+1 {
+        //     // println!("Decode keybag attempt {}: {:?}", len, aes_unwrap_key(&kek[..], &encrypted_bag[0..len]))
+        //     println!("Decode keybag attempt {}: {:?}", len, aes_unwrap_key(&kek[..], &encrypted_bag[len..]))
+        // }
+        // match aes_unwrap_key_and_iv(&kek[..], &encrypted_bag[0..4096]) {
+        // match aes_unwrap_key(&kek[..], &encrypted_bag) {
+        // match Aes128KeyWrap::new(kek).decapsulate(&encrypted_bag, encrypted_bag.len()-8) {
+        //     Ok(bag) => {
+        //         println!("{:?}", bag);
+        //     },
+        //     Err(error) => {
+        //         println!("Failed to decrypt keybag: {:?}", error);
+        //     }
+        // }
+        // println!("{:?}", apfs.load_object_addr(superblock.body.keylocker.start_paddr));
     }
     let object = apfs.load_object_oid(superblock.body.omap_oid, StorageType::Physical).unwrap();
     let omap = match object {
