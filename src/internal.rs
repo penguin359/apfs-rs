@@ -102,6 +102,10 @@ pub const OBJECT_TYPE_FLAGS_MASK            : u32 = 0xffff0000;
 const OBJ_STORAGETYPE_MASK              : u32 = 0xc0000000;
 const OBJECT_TYPE_FLAGS_DEFINED_MASK    : u32 = 0xf8000000;
 
+const CONTAINER_KEYBAG       : u32 = u32_code!(b"keys");
+const VOLUME_KEYBAG          : u32 = u32_code!(b"recs");
+const MEDIA_KEYBAG           : u32 = u32_code!(b"mkey");
+
 #[repr(u32)]
 #[derive(Debug, PartialEq, FromPrimitive)]
 pub enum ObjectType {
@@ -147,9 +151,9 @@ pub enum ObjectType {
     Invalid               = 0x00000000,
     Test                  = 0x000000ff,
 
-    ContainerKeybag       = 0x7379656b,  // u32_code!(b"keys"),
-    VolumeKeybag          = 0x73636572,  // u32_code!(b"recs"),
-    MediaKeybag           = 0x79656b6d,  // u32_code!(b"mkey"),
+    ContainerKeybag       = CONTAINER_KEYBAG,
+    VolumeKeybag          = VOLUME_KEYBAG,
+    MediaKeybag           = MEDIA_KEYBAG,
 }
 
 #[repr(u32)]
@@ -171,7 +175,19 @@ bitflags! {
 pub struct ObjectTypeAndFlags(u32);
 
 impl ObjectTypeAndFlags {
+    fn is_special_type(value: u32) -> bool {
+        match ObjectType::from_u32(value) {
+            Some(ObjectType::ContainerKeybag) => true,
+            Some(ObjectType::VolumeKeybag) => true,
+            Some(ObjectType::MediaKeybag) => true,
+            _ => false,
+        }
+    }
+
     pub fn new(value: u32) -> io::Result<ObjectTypeAndFlags> {
+        if Self::is_special_type(value) {
+            return Ok(ObjectTypeAndFlags(value));
+        }
         ObjectType::from_u32(value & OBJECT_TYPE_MASK)
             .ok_or(io::Error::new(io::ErrorKind::InvalidData, format!("Unknown object type: {}", value & OBJECT_TYPE_MASK)))?;
         StorageType::from_u32(value & OBJ_STORAGETYPE_MASK)
@@ -189,17 +205,31 @@ impl ObjectTypeAndFlags {
     }
 
     pub fn r#type(&self) -> ObjectType {
-        ObjectType::from_u32(self.0 & OBJECT_TYPE_MASK)
+        let value = if Self::is_special_type(self.0) {
+            self.0
+        } else {
+            self.0 & OBJECT_TYPE_MASK
+        };
+        ObjectType::from_u32(value)
             .expect("Unknown object type")
     }
 
     pub fn storage(&self) -> StorageType {
-        StorageType::from_u32(self.0 & OBJ_STORAGETYPE_MASK)
-            .expect("Unknown storage type")
+        if Self::is_special_type(self.0) {
+            StorageType::Physical
+        } else {
+            StorageType::from_u32(self.0 & OBJ_STORAGETYPE_MASK)
+                .expect("Unknown storage type")
+        }
     }
 
     pub fn flags(&self) -> ObjTypeFlags {
-        ObjTypeFlags::from_bits(self.0 & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK)).expect("Unknown object flags")
+        if Self::is_special_type(self.0) {
+            ObjTypeFlags::empty()
+        } else {
+            ObjTypeFlags::from_bits(self.0 & (OBJECT_TYPE_FLAGS_MASK & !OBJ_STORAGETYPE_MASK))
+                .expect("Unknown object flags")
+        }
     }
 }
 

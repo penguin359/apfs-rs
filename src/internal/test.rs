@@ -33,6 +33,45 @@ fn test_create_new_object_type_and_flags() {
 }
 
 #[test]
+fn test_create_new_object_type_and_flags_from_value() {
+    let value = ObjectTypeAndFlags::new(0x00000000 | 0x00000000 | 0x00000000).expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::Invalid);
+    assert_eq!(value.storage(), StorageType::Virtual);
+    assert_eq!(value.flags(), ObjTypeFlags::empty());
+    let value = ObjectTypeAndFlags::new(0x00000002 | 0x00000000 | 0x20000000).expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::Btree);
+    assert_eq!(value.storage(), StorageType::Virtual);
+    assert_eq!(value.flags(), ObjTypeFlags::NOHEADER);
+    let value = ObjectTypeAndFlags::new(0x0000000b | 0x40000000 | 0x10000000).expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::Omap);
+    assert_eq!(value.storage(), StorageType::Physical);
+    assert_eq!(value.flags(), ObjTypeFlags::ENCRYPTED);
+    let value = ObjectTypeAndFlags::new(0x00000019 | 0x80000000 | 0x10000000 | 0x08000000).expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::Gbitmap);
+    assert_eq!(value.storage(), StorageType::Ephemeral);
+    assert_eq!(value.flags(), ObjTypeFlags::ENCRYPTED | ObjTypeFlags::NONPERSISTENT);
+}
+
+#[test]
+fn can_decode_keybag_object_ids() {
+    let value = ObjectTypeAndFlags::new(ObjectType::ContainerKeybag as u32)
+        .expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::ContainerKeybag);
+    assert_eq!(value.storage(), StorageType::Physical);
+    assert_eq!(value.flags(), ObjTypeFlags::empty());
+    let value = ObjectTypeAndFlags::new(ObjectType::VolumeKeybag as u32)
+        .expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::VolumeKeybag);
+    assert_eq!(value.storage(), StorageType::Physical);
+    assert_eq!(value.flags(), ObjTypeFlags::empty());
+    let value = ObjectTypeAndFlags::new(ObjectType::MediaKeybag as u32)
+        .expect("Failed to parse object type and flag value");
+    assert_eq!(value.r#type(), ObjectType::MediaKeybag);
+    assert_eq!(value.storage(), StorageType::Physical);
+    assert_eq!(value.flags(), ObjTypeFlags::empty());
+}
+
+#[test]
 fn test_load_superblock() {
     let mut buffer = [0u8; NX_DEFAULT_BLOCK_SIZE];
     let mut file = File::open(test_dir().join("test-apfs.img")).unwrap();
