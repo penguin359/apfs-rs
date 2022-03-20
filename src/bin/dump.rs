@@ -115,7 +115,56 @@ struct KeyBlob<'a> {
     unk_80: u64,
     hmac: OctetString<'a>,
     salt: OctetString<'a>,
-    blob: Any<'a>,
+    blob: &'a[u8],
+}
+
+use sha2::{Sha256, Digest};
+use hmac::{Hmac, Mac};
+use hex_literal::hex;
+
+type HmacSha256 = Hmac<Sha256>;
+
+#[test]
+fn test_hmac_sha256() {
+    let mut mac: HmacSha256 = Mac::new_from_slice(b"my secret and secure key")
+        .expect("HMAC can take key of any size");
+    mac.update(b"input message");
+
+    // `result` has type `CtOutput` which is a thin wrapper around array of
+    // bytes for providing constant time equality check
+    let result = mac.finalize();
+    // To get underlying array use `into_bytes`, but be careful, since
+    // incorrect use of the code value may permit timing attacks which defeats
+    // the security provided by the `CtOutput`
+    let code_bytes = result.into_bytes();
+    let expected = hex!("
+        97d2a569059bbcd8ead4444ff99071f4
+        c01d005bcefe0d3567e1be628e5fdcd9
+    ");
+    assert_eq!(code_bytes[..], expected[..]);
+}
+
+fn verify_key_blob(key: &KeyBlob) -> bool {
+    const BLOB_COOKIE: [u8; 6] = [ 0x01, 0x16, 0x20, 0x17, 0x15, 0x05 ];
+
+    assert_eq!(key.unk_80, 0);
+    let mut hmac_key = Sha256::new();
+    hmac_key.update(&BLOB_COOKIE);
+    hmac_key.update(key.salt);
+    let hk = hmac_key.finalize();
+    println!("Debug out\n{:02x}\n{:02x}\n{:02x}", hk[0], key.blob[0], key.blob.len());
+
+    let mut mac: HmacSha256 = Mac::new_from_slice(&hk)
+        .expect("HMAC can take key of any size");
+    mac.update(key.blob);
+    let result = mac.finalize();
+    let b = result.into_bytes();
+    println!("Calc: {:02x?}, Expected: {:02x?}", &b, key.hmac);
+    if &b[..] == &key.hmac.as_bytes()[..] {
+        true
+    } else {
+        panic!("Failed HMAC!");
+    }
 }
 
 fn main() {
@@ -271,11 +320,15 @@ fn main() {
                                 unk_80: value.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value"),
                                 hmac: value.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value"),
                                 salt: value.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("bad num").expect("Value"),
-                                blob: value.clone().any().expect("bad any"),
+                                blob: {
+                                    let pos: u32 = value.position().into();
+                                    &entry.keydata[pos as usize..]
+                                },
                             };
+                            verify_key_blob(&key);
                             let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad num").expect("Value");
                             // println!("Volume Bag: {} - {:?} - {:?} - {:?} ({})", unk_80, hmac, salt, inner, blob.value().len());
-                            println!("Volume Bag: {:?} - {:?} ({})", key, inner, key.blob.value().len());
+                            println!("Volume Bag: {:?} - {:?} ({})", key, inner, key.blob.len());
                             Ok(())
                         }).expect("Failed to decode");
                         // let mut dump_file = File::create("keybag-volume.raw").expect("Can't open dump file for keybag");
@@ -319,10 +372,14 @@ fn main() {
                         unk_80: value.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value"),
                         hmac: value.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value"),
                         salt: value.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("bad num").expect("Value"),
-                        blob: value.clone().any().expect("bad any"),
+                        blob: {
+                            let pos: u32 = value.position().into();
+                            &entry.keydata[pos as usize..]
+                        },
                     };
+                    verify_key_blob(&key);
                     let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad num").expect("Value");
-                    println!("Bag: {:?} - {:?} ({})", key, inner, key.blob.value().len());
+                    println!("Bag: {:?} - {:?} ({})", key, inner, key.blob.len());
                     Ok(())
                 }).expect("Failed to decode");
                 // let mut dump_file = File::create("keybag.raw").expect("Can't open dump file for keybag");
