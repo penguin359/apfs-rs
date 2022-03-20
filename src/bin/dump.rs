@@ -1,9 +1,11 @@
 use std::{fs::File, cmp::min, io::Cursor};
-// use std::{convert::TryInto, borrow::Borrow, io::Write};
+// use std::{convert::TryInto, borrow::Borrow, io::Write, os::unix::prelude::OsStrExt};
 
 // use aes_keywrap::Aes128KeyWrap;
 // use aes_keywrap_rs::{aes_unwrap_key, aes_unwrap_key_and_iv};
 use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes, MediaKeybag, ObjPhys, KbTag, Prange};
+use der::{Decoder, TagNumber, asn1::OctetString, DecodeValue, FixedTag, Any};
+// use der_derive::Sequence;
 
 use std::{env, collections::HashMap};
 
@@ -91,6 +93,29 @@ fn dump_apfs_records(btree: &Btree<ApfsValue>, apfs: &mut APFS<File>, omap_btree
             }
         }
     }
+}
+
+// use der::{Sequence, asn1::Any};
+// use der::asn1;
+extern crate der_derive;
+use der_derive::Sequence;
+
+#[derive(Sequence)]
+struct Bag {
+    #[asn1(context_specific="0")]
+    unknown_80: u8,
+    #[asn1(context_specific="1")]
+    iter: u64,
+    // #[asn1(context_specific="1")]
+    // salt: Vec<u8>,
+}
+
+#[derive(Debug)]
+struct KeyBlob<'a> {
+    unk_80: u64,
+    hmac: OctetString<'a>,
+    salt: OctetString<'a>,
+    blob: Any<'a>,
 }
 
 fn main() {
@@ -208,7 +233,98 @@ fn main() {
                 let decoded = MediaKeybag::import(&mut keybag_cursor).expect("Failed to decode volume keybag");
                 println!("Decoded volume keybag header: {:#x?}", decoded_header);
                 println!("Decoded volume keybag: {:#x?}", decoded);
+                for entry in decoded.locker.entries {
+                    if entry.tag == KbTag::VolumeUnlockRecords {
+                        let mut value = Decoder::new(&entry.keydata).expect("Bad DER encoding");
+                        value.sequence(|value| {
+                            #[derive(Debug)]
+                            struct Inner<'a> {
+                                unk_80: u64,
+                                uuid: OctetString<'a>,
+                                unk_82: OctetString<'a>,
+                                wrapped_kek: OctetString<'a>,
+                                iterations: u64,
+                                salt: OctetString<'a>,
+                            }
+                            impl FixedTag for Inner<'_> {
+                                const TAG: der::Tag = der::Tag::ContextSpecific { constructed: true, number: TagNumber::N3 };
+                            }
+                            impl<'a> DecodeValue<'a> for Inner<'a> {
+                                fn decode_value(decoder: &mut Decoder<'a>, _: der::Length) -> der::Result<Self> {
+                                    let unk_80: u64 = decoder.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value");
+                                    let uuid: OctetString = decoder.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                                    let unk_82: OctetString = decoder.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                                    let wrapped_kek: OctetString = decoder.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                                    let iterations: u64 = decoder.context_specific(TagNumber::N4, der::TagMode::Implicit).expect("Bad num").expect("Value");
+                                    let salt: OctetString = decoder.context_specific(TagNumber::N5, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                                    Ok(Self {
+                                        unk_80,
+                                        uuid,
+                                        unk_82,
+                                        wrapped_kek,
+                                        iterations,
+                                        salt,
+                                    })
+                                }
+                            }
+                            let key = KeyBlob {
+                                unk_80: value.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value"),
+                                hmac: value.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value"),
+                                salt: value.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("bad num").expect("Value"),
+                                blob: value.clone().any().expect("bad any"),
+                            };
+                            let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad num").expect("Value");
+                            // println!("Volume Bag: {} - {:?} - {:?} - {:?} ({})", unk_80, hmac, salt, inner, blob.value().len());
+                            println!("Volume Bag: {:?} - {:?} ({})", key, inner, key.blob.value().len());
+                            Ok(())
+                        }).expect("Failed to decode");
+                        // let mut dump_file = File::create("keybag-volume.raw").expect("Can't open dump file for keybag");
+                        // dump_file.write_all(&mut entry.keydata.clone()).expect("failed to save keybag");
+                    }
+                }
             } else {
+                let mut value = Decoder::new(&entry.keydata).expect("Bad DER encoding");
+                value.sequence(|value| {
+                    #[derive(Debug)]
+                    struct Inner<'a> {
+                        unk_80: u64,
+                        uuid: OctetString<'a>,
+                        unk_82: OctetString<'a>,
+                        wrapped_vek: OctetString<'a>,
+                    }
+                    impl FixedTag for Inner<'_> {
+                        const TAG: der::Tag = der::Tag::ContextSpecific { constructed: true, number: TagNumber::N3 };
+                    }
+                    impl<'a> DecodeValue<'a> for Inner<'a> {
+                        fn decode_value(decoder: &mut Decoder<'a>, _: der::Length) -> der::Result<Self> {
+                            let unk_80: u64 = decoder.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value");
+                            let uuid: OctetString = decoder.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                            let unk_82: OctetString = decoder.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                            let wrapped_vek: OctetString = decoder.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                            Ok(Self {
+                                unk_80,
+                                uuid,
+                                unk_82,
+                                wrapped_vek,
+                            })
+                        }
+                    }
+                    // let unknown_80: bool = value.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value");
+                    // let body: OctetString = value.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value");
+                    // let num = ContextSpecific::<u64>::decode_implicit(value, TagNumber::N2).expect("bad num").expect("Value").value;
+                    // let raw = value.clone().any().expect("bad any");
+                    // let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad inner").expect("Value");
+                    // println!("Bag: {} - {:?} - {} - {:?} ({})", unknown_80, body, num, inner, raw.value().len());
+                    let key = KeyBlob {
+                        unk_80: value.context_specific(TagNumber::N0, der::TagMode::Implicit).expect("Invalid field").expect("Value"),
+                        hmac: value.context_specific(TagNumber::N1, der::TagMode::Implicit).expect("Bad bytes").expect("Value"),
+                        salt: value.context_specific(TagNumber::N2, der::TagMode::Implicit).expect("bad num").expect("Value"),
+                        blob: value.clone().any().expect("bad any"),
+                    };
+                    let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad num").expect("Value");
+                    println!("Bag: {:?} - {:?} ({})", key, inner, key.blob.value().len());
+                    Ok(())
+                }).expect("Failed to decode");
                 // let mut dump_file = File::create("keybag.raw").expect("Can't open dump file for keybag");
                 // dump_file.write_all(&mut entry.keydata.clone()).expect("failed to save keybag");
             }
