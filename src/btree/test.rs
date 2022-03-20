@@ -688,11 +688,11 @@ mod block_4k {
     }
 }
 
-#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 mod block_16k {
     use super::*;
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn can_get_exact_matching_record_from_leaf_node() {
         let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_leaf_record_lookup_node(&btree.root, 1026, 2, Oid(1026), Xid(2), 16384, Paddr(978));
@@ -701,6 +701,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn no_record_returned_on_bad_exact_match_from_leaf_node() {
         let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_record_lookup_missing_node(&btree.root, 1025, 2);
@@ -712,6 +713,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn can_get_inexact_matching_record_from_leaf_node() {
         let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_leaf_record_lookup_node(&btree.root, 1026, 3, Oid(1026), Xid(2), 16384, Paddr(978));
@@ -723,6 +725,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn no_record_returned_on_bad_inexact_match_from_leaf_node() {
         let (_, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_record_lookup_missing_node(&btree.root, 1026, 0);
@@ -734,6 +737,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn can_get_exact_matching_record_from_btree() {
         let (mut apfs, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_leaf_record_lookup_btree(&btree, &mut apfs, 1026, 2, Oid(1026), Xid(2), 16384, Paddr(978));
@@ -742,6 +746,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn no_record_returned_on_bad_exact_match_from_btree() {
         let (mut apfs, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_record_lookup_missing_btree(&btree, &mut apfs, 1025, 2);
@@ -753,6 +758,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn can_get_inexact_matching_record_from_btree() {
         let (mut apfs, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_leaf_record_lookup_btree(&btree, &mut apfs, 1026, 3, Oid(1026), Xid(2), 16384, Paddr(978));
@@ -764,6 +770,7 @@ mod block_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn no_record_returned_on_bad_inexact_match_from_btree() {
         let (mut apfs, _, _, btree) = load_test_apfs_object_map_btree(TEST_16KB_APFS_FILE);
         check_omap_record_lookup_missing_btree(&btree, &mut apfs, 1026, 0);
@@ -1017,6 +1024,7 @@ mod spaceman_free_queue_16k {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "expensive_tests"), ignore)]
     fn can_load_test_apfs_sfq_btree_with_ghosts() {
         let (_, _, btree) = load_test_apfs_sfq_btree(TEST_16KB_APFS_FILE);
         let records = match &btree.root.records {
