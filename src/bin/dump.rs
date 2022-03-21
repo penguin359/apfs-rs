@@ -1,10 +1,11 @@
-use std::{fs::File, cmp::min, io::Cursor};
+use std::{fs::File, cmp::min, io::{Cursor, BufRead}, env::VarError};
 // use std::{convert::TryInto, borrow::Borrow, io::Write, os::unix::prelude::OsStrExt};
 
 // use aes_keywrap::Aes128KeyWrap;
 // use aes_keywrap_rs::{aes_unwrap_key, aes_unwrap_key_and_iv};
 use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes, MediaKeybag, ObjPhys, KbTag, Prange};
 use der::{Decoder, TagNumber, asn1::OctetString, DecodeValue, FixedTag, Any};
+use lzy_pbkdf2::pbkdf2_hmac_sha256;
 // use der_derive::Sequence;
 
 use std::{env, collections::HashMap};
@@ -329,6 +330,20 @@ fn main() {
                             let inner: Inner = value.context_specific(TagNumber::N3, der::TagMode::Implicit).expect("bad num").expect("Value");
                             // println!("Volume Bag: {} - {:?} - {:?} - {:?} ({})", unk_80, hmac, salt, inner, blob.value().len());
                             println!("Volume Bag: {:?} - {:?} ({})", key, inner, key.blob.len());
+                            let passwd = "";
+                            let passwd = std::env::var("APFS_PASSWD").or_else(|_: VarError | -> std::io::Result<String> {
+                                let mut passwd = String::new();
+                                println!("APFS Password: ");
+                                // std::io::stdin().flush();
+                                std::io::stdin().lock().read_line(&mut passwd)?;
+                                println!("Got password: {}", &passwd);
+                                Ok(passwd)
+                            }).expect("Failed to read password");
+                            let hash = pbkdf2_hmac_sha256(passwd, inner.salt, 32, inner.iterations as usize);
+                            assert!(hash.len() > 0, "Failed to PBKDF2 password");
+                            assert_eq!(hash.len(), 32, "PBKDF2 password hash is short");
+                            println!("PW Key  : {:02x?}", hash);
+                            println!("KEK Wrpd: {:02x?}", inner.wrapped_kek);
                             Ok(())
                         }).expect("Failed to decode");
                         // let mut dump_file = File::create("keybag-volume.raw").expect("Can't open dump file for keybag");
