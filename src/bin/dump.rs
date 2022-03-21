@@ -5,7 +5,8 @@ use std::{fs::File, cmp::min, io::{Cursor, BufRead}, env::VarError};
 // use aes_keywrap_rs::{aes_unwrap_key, aes_unwrap_key_and_iv};
 use apfs::{APFS, APFSObject, Btree, Oid, Paddr, StorageType, OvFlags, OmapVal, OmapRecord, ApfsValue, AnyRecords, InoExtType, InodeXdata, OmapKey, ObjectType, SpacemanFreeQueueValue, NX_EFI_JUMPSTART_MAGIC, NX_EFI_JUMPSTART_VERSION, load_btree_generic, LeafValue, BtreeTypes, MediaKeybag, ObjPhys, KbTag, Prange};
 use der::{Decoder, TagNumber, asn1::OctetString, DecodeValue, FixedTag, Any};
-use lzy_pbkdf2::pbkdf2_hmac_sha256;
+// use lzy_pbkdf2::pbkdf2_hmac_sha256;
+use fastpbkdf2::pbkdf2_hmac_sha256;
 // use der_derive::Sequence;
 
 use std::{env, collections::HashMap};
@@ -339,7 +340,9 @@ fn main() {
                                 println!("Got password: {}", &passwd);
                                 Ok(passwd)
                             }).expect("Failed to read password");
-                            let hash = pbkdf2_hmac_sha256(passwd, inner.salt, 32, inner.iterations as usize);
+                            // let hash = pbkdf2_hmac_sha256(passwd, inner.salt, 32, inner.iterations as usize);
+                            let mut hash = [0u8; 32];
+                            pbkdf2_hmac_sha256(passwd.as_ref(), inner.salt.as_ref(), inner.iterations as u32, &mut hash);
                             assert!(hash.len() > 0, "Failed to PBKDF2 password");
                             assert_eq!(hash.len(), 32, "PBKDF2 password hash is short");
                             println!("PW Key  : {:02x?}", hash);
